@@ -131,6 +131,7 @@ function assertCriticalModuleResolution(appDir) {
     { moduleName: '@prisma/client', fromDir: appDir },
     { moduleName: 'bullmq', fromDir: appDir },
     { moduleName: 'ioredis', fromDir: appDir },
+    { moduleName: 'sharp', fromDir: appDir },
     { moduleName: '@ioredis/commands', fromDir: bullmqDir },
   ]
 
@@ -147,6 +148,7 @@ function runRuntimeDependencySmokeTest(appDir) {
       throw new Error('bullmq.Queue 不可用')
     }
     require('ioredis')
+    require('sharp')
   `
 
   const result = spawnSync(process.execPath, ['-e', smokeScript], {

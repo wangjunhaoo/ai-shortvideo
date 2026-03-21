@@ -22,7 +22,7 @@
     "desktop:prisma:generate:sqlite": "node ./node_modules/prisma/build/index.js generate --schema prisma/schema.sqlite.prisma",
     "desktop:build:web": "next build",
     "desktop:clean": "node -e \"require('node:fs').rmSync('dist/desktop',{recursive:true,force:true})\"",
-    "desktop:deps:install": "pnpm install --prefer-offline --prod=false --lockfile=false",
+    "desktop:deps:install": "npm ci --include=optional",
     "desktop:prepare": "npm run desktop:clean && npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
     "desktop:run": "electron ./desktop/main.cjs",
     "desktop:pack": "electron-builder --win nsis --publish never",
