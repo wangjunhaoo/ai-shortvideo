@@ -5,7 +5,8 @@
   "main": "desktop/main.cjs",
   "engines": {
     "node": ">=18.18.0",
-    "npm": ">=9.0.0"
+    "npm": ">=9.0.0",
+    "pnpm": ">=8.15.5"
   },
   "scripts": {
     "postinstall": "node ./node_modules/prisma/build/index.js generate",
@@ -19,12 +20,12 @@
     "desktop:prepare:sqlite-schema": "node scripts/build-sqlite-schema.mjs",
     "desktop:prisma:generate:sqlite": "node ./node_modules/prisma/build/index.js generate --schema prisma/schema.sqlite.prisma",
     "desktop:build:web": "next build",
-    "desktop:clean": "rimraf dist/desktop",
-    "desktop:deps:install": "pnpm install --frozen-lockfile --prefer-offline",
+    "desktop:clean": "node -e \"require('node:fs').rmSync('dist/desktop',{recursive:true,force:true})\"",
+    "desktop:deps:install": "pnpm install --frozen-lockfile --prefer-offline --prod=false",
     "desktop:prepare": "npm run desktop:clean && npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
     "desktop:run": "electron ./desktop/main.cjs",
-    "desktop:pack": "npm run desktop:deps:install && electron-builder --win nsis --publish never",
-    "desktop:dist": "npm run desktop:prepare && npm run desktop:pack",
+    "desktop:pack": "electron-builder --win nsis --publish never",
+    "desktop:dist": "npm run desktop:deps:install && npm run desktop:prepare && npm run desktop:pack",
     "desktop:all": "npm run desktop:sync:redis:win && npm run desktop:dist",
     "desktop:sync:redis:win": "node scripts/desktop/sync-redis-win.mjs",
     "build:turbo": "next build --turbopack",
