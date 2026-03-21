@@ -5,7 +5,6 @@ const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 const http = require('node:http')
 const path = require('node:path')
-const { pathToFileURL } = require('node:url')
 
 const APP_PORT_DEFAULT = 13000
 const REDIS_PORT_DEFAULT = 16379
@@ -53,7 +52,9 @@ function appendProcessLog(logFilePath, source, chunk) {
 }
 
 function joinWindowsPathForPrisma(filePath) {
-  return pathToFileURL(filePath).href
+  // Prisma SQLite 在 Windows 下使用 file:///C:/... 可能触发路径解析异常，统一为 file:C:/...
+  const normalized = path.resolve(filePath).replace(/\\/g, '/')
+  return `file:${normalized}`
 }
 
 function buildEnvFileContent(env) {
