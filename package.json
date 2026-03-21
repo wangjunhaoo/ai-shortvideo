@@ -8,7 +8,7 @@
     "npm": ">=9.0.0"
   },
   "scripts": {
-    "postinstall": "prisma generate",
+    "postinstall": "node ./node_modules/prisma/build/index.js generate",
     "prepare": "husky",
     "dev": "npm run storage:init && concurrently --kill-others \"npm run dev:next\" \"npm run dev:worker\" \"npm run dev:watchdog\" \"npm run dev:board\"",
     "dev:next": "cross-env NODE_OPTIONS=\"--no-deprecation\" next dev --turbopack -H 0.0.0.0",
@@ -16,9 +16,9 @@
     "dev:watchdog": "tsx watch --env-file=.env scripts/watchdog.ts",
     "dev:board": "tsx watch --env-file=.env scripts/bull-board.ts",
     "dev:turbo": "next dev --turbopack -H 0.0.0.0",
-    "build": "prisma generate && next build",
+    "build": "node ./node_modules/prisma/build/index.js generate && next build",
     "desktop:prepare:sqlite-schema": "node scripts/build-sqlite-schema.mjs",
-    "desktop:prisma:generate:sqlite": "prisma generate --schema prisma/schema.sqlite.prisma",
+    "desktop:prisma:generate:sqlite": "node ./node_modules/prisma/build/index.js generate --schema prisma/schema.sqlite.prisma",
     "desktop:build:web": "next build",
     "desktop:prepare": "npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
     "desktop:run": "electron ./desktop/main.cjs",
