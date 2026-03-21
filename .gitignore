@@ -68,6 +68,9 @@ prisma/data/
 # uploads (user data)
 uploads/
 /data/
+desktop/bin/redis/windows/*
+!desktop/bin/redis/windows/.gitkeep
+dist/desktop/
 
 certificates
 

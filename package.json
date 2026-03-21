@@ -2,6 +2,7 @@
   "name": "waoowaoo",
   "version": "0.3.0",
   "private": true,
+  "main": "desktop/main.cjs",
   "engines": {
     "node": ">=18.18.0",
     "npm": ">=9.0.0"
@@ -16,6 +17,14 @@
     "dev:board": "tsx watch --env-file=.env scripts/bull-board.ts",
     "dev:turbo": "next dev --turbopack -H 0.0.0.0",
     "build": "prisma generate && next build",
+    "desktop:prepare:sqlite-schema": "node scripts/build-sqlite-schema.mjs",
+    "desktop:prisma:generate:sqlite": "prisma generate --schema prisma/schema.sqlite.prisma",
+    "desktop:build:web": "next build",
+    "desktop:prepare": "npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
+    "desktop:run": "electron ./desktop/main.cjs",
+    "desktop:pack": "electron-builder --win nsis --publish never",
+    "desktop:dist": "npm run desktop:prepare && npm run desktop:pack",
+    "desktop:sync:redis:win": "node scripts/desktop/sync-redis-win.mjs",
     "build:turbo": "next build --turbopack",
     "start": "npm run storage:init && concurrently --kill-others \"npm run start:next\" \"npm run start:worker\" \"npm run start:watchdog\" \"npm run start:board\"",
     "storage:init": "tsx --env-file=.env src/lib/storage/init.ts",
@@ -156,6 +165,7 @@
     "react-hot-toast": "^2.6.0",
     "remotion": "^4.0.405",
     "sharp": "^0.34.5",
+    "tsx": "^4.20.5",
     "undici": "^7.22.0",
     "zod": "^3.25.76"
   },
@@ -169,13 +179,58 @@
     "@vitest/coverage-v8": "^2.1.8",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
+    "electron": "^35.2.2",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "husky": "^9.1.7",
     "rimraf": "^6.1.2",
     "tailwindcss": "^4",
-    "tsx": "^4.20.5",
     "typescript": "^5",
     "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.waoowaoo.desktop",
+    "productName": "waoowaoo",
+    "asar": false,
+    "directories": {
+      "output": "dist/desktop"
+    },
+    "files": [
+      "desktop/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "src/**/*",
+      "scripts/**/*",
+      "lib/**/*",
+      "messages/**/*",
+      "standards/**/*",
+      "prisma/**/*",
+      "next.config.ts",
+      "middleware.ts",
+      "postcss.config.mjs",
+      "tsconfig.json",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop/bin/redis/windows",
+        "to": "redis/windows"
+      }
+    ],
+    "win": {
+      "icon": "public/logo.ico",
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

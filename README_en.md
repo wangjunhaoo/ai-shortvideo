@@ -29,6 +29,29 @@
 
 ## 🚀 Quick Start
 
+### Windows Desktop Build (Recommended for end users)
+
+> This repository now includes a desktop packaging pipeline (Electron + NSIS).  
+> End users can install with `Setup.exe` without Docker or Node.js.
+
+For maintainers, build desktop artifacts with:
+
+```bash
+# 1) Prepare sqlite schema + prisma client + web build
+npm run desktop:prepare
+
+# 2) (Windows only) download redis-server.exe into package directory
+npm run desktop:sync:redis:win
+
+# 3) Build NSIS installer
+npm run desktop:pack
+```
+
+CI workflow: `.github/workflows/desktop-windows.yml`  
+Tag push (`v*`) will automatically build and upload installer assets.
+
+---
+
 **Prerequisites**: Install [Docker Desktop](https://docs.docker.com/get-docker/)
 
 ### Method 1: Pull Pre-built Image (Easiest)

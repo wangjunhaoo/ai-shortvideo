@@ -35,6 +35,7 @@ vi.mock('bullmq', () => ({
 }))
 
 vi.mock('@/lib/redis', () => ({
+  queueConnection: {},
   queueRedis: {},
 }))
 

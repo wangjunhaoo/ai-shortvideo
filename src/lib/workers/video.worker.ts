@@ -1,6 +1,6 @@
 import { Worker, type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { queueRedis } from '@/lib/redis'
+import { queueConnection } from '@/lib/redis'
 import { QUEUE_NAME } from '@/lib/task/queues'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 import { getUserWorkflowConcurrencyConfig } from '@/lib/config-service'
@@ -309,7 +309,7 @@ export function createVideoWorker() {
       })
     }),
     {
-      connection: queueRedis,
+      connection: queueConnection,
       concurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY_VIDEO || '4', 10) || 4,
     },
   )

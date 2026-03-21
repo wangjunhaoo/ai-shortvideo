@@ -37,6 +37,29 @@
 
 ## 🚀 快速开始
 
+### Windows 桌面版（推荐普通用户）
+
+> 当前仓库已提供桌面端打包链路（Electron + NSIS）。  
+> 普通用户可直接使用 `Setup.exe` 安装，无需 Docker / Node.js。
+
+如果你是维护者，发布桌面安装包步骤如下：
+
+```bash
+# 1) 生成 sqlite schema + prisma client + web 构建
+npm run desktop:prepare
+
+# 2) （仅 Windows）下载 redis-server.exe 到打包目录
+npm run desktop:sync:redis:win
+
+# 3) 产出安装包
+npm run desktop:pack
+```
+
+CI 已新增 Windows 构建工作流：`.github/workflows/desktop-windows.yml`。  
+打 tag（`v*`）后会自动生成并上传桌面安装包资产。
+
+---
+
 **前提条件**：安装 [Docker Desktop](https://docs.docker.com/get-docker/)
 
 ### 方式一：拉取预构建镜像（最简单）

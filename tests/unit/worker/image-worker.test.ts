@@ -56,7 +56,7 @@ vi.mock('bullmq', () => ({
   },
 }))
 
-vi.mock('@/lib/redis', () => ({ queueRedis: {} }))
+vi.mock('@/lib/redis', () => ({ queueConnection: {}, queueRedis: {} }))
 vi.mock('@/lib/workers/shared', () => sharedMock)
 vi.mock('@/lib/config-service', () => configServiceMock)
 vi.mock('@/lib/workers/user-concurrency-gate', () => gateMock)

@@ -23,6 +23,12 @@ const eslintConfig = [
     ],
   },
   {
+    files: ["**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/components/ui/icons/**"],
     rules: {

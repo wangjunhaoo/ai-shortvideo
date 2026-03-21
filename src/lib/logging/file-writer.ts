@@ -135,9 +135,20 @@ async function appendLineAsync(filePath: string, line: string): Promise<void> {
     }
 }
 
+function resolveLogDir(modules: NodeModules): string {
+    const configured = process.env.LOG_DIR?.trim()
+    if (!configured) {
+        return modules.path.join(modules.cwd, 'logs')
+    }
+    if (modules.path.isAbsolute(configured)) {
+        return configured
+    }
+    return modules.path.join(modules.cwd, configured)
+}
+
 function buildLogFilePath(modules: NodeModules, prefix: string, projectName: string): string {
     const fileName = `${prefix}_${sanitizeProjectName(projectName)}.log`
-    return modules.path.join(modules.cwd, 'logs', fileName)
+    return modules.path.join(resolveLogDir(modules), fileName)
 }
 
 // ─── 24h cleanup helpers ─────────────────────────────────────────────
