@@ -89,6 +89,19 @@ function resolveRedisBinary(appRoot) {
   return candidates.find((candidate) => fs.existsSync(candidate)) || null
 }
 
+function isPrismaClientInitialized(appRoot) {
+  const defaultClientPath = path.join(appRoot, 'node_modules', '.prisma', 'client', 'default.js')
+  if (!fs.existsSync(defaultClientPath)) {
+    return false
+  }
+  try {
+    const content = fs.readFileSync(defaultClientPath, 'utf8')
+    return !content.includes('did not initialize yet')
+  } catch {
+    return false
+  }
+}
+
 function buildSpawnEnv(runtimeEnv) {
   return {
     ...process.env,
@@ -158,6 +171,36 @@ async function runNodeOnce(params) {
       reject(new Error(`步骤 ${name} 失败，退出码 ${code}\n${stderr}`))
     })
   })
+}
+
+async function ensurePrismaClientReady(runtime) {
+  if (isPrismaClientInitialized(runtime.appRoot)) {
+    return
+  }
+
+  if (app.isPackaged) {
+    throw new Error(
+      '当前安装包中的 Prisma Client 未正确生成，请重新执行 desktop:prepare 与 desktop:pack 后安装最新安装包。',
+    )
+  }
+
+  logDesktop('检测到 Prisma Client 未就绪，尝试在开发环境自动生成')
+  await runNodeOnce({
+    name: 'prisma-generate',
+    appRoot: runtime.appRoot,
+    logsDir: runtime.logsDir,
+    runtimeEnv: runtime.runtimeEnv,
+    args: [
+      path.join('node_modules', 'prisma', 'build', 'index.js'),
+      'generate',
+      '--schema',
+      path.join('prisma', 'schema.sqlite.prisma'),
+    ],
+  })
+
+  if (!isPrismaClientInitialized(runtime.appRoot)) {
+    throw new Error('Prisma Client 生成后仍未就绪，请检查 desktop-prisma-generate.log。')
+  }
 }
 
 function spawnRedisProcess(params) {
@@ -261,6 +304,8 @@ async function startManagedRuntime(runtime) {
   }
 
   logDesktop('准备数据库结构')
+  await ensurePrismaClientReady(runtime)
+
   await runNodeOnce({
     name: 'prisma-db-push',
     appRoot: runtime.appRoot,

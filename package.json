@@ -19,10 +19,11 @@
     "desktop:prepare:sqlite-schema": "node scripts/build-sqlite-schema.mjs",
     "desktop:prisma:generate:sqlite": "node ./node_modules/prisma/build/index.js generate --schema prisma/schema.sqlite.prisma",
     "desktop:build:web": "next build",
+    "desktop:clean": "rimraf dist/desktop",
     "desktop:prepare": "npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
     "desktop:run": "electron ./desktop/main.cjs",
     "desktop:pack": "electron-builder --win nsis --publish never",
-    "desktop:dist": "npm run desktop:prepare && npm run desktop:pack",
+    "desktop:dist": "npm run desktop:clean && npm run desktop:prepare && npm run desktop:pack",
     "desktop:sync:redis:win": "node scripts/desktop/sync-redis-win.mjs",
     "build:turbo": "next build --turbopack",
     "start": "npm run storage:init && concurrently --kill-others \"npm run start:next\" \"npm run start:worker\" \"npm run start:watchdog\" \"npm run start:board\"",
@@ -194,6 +195,7 @@
     "appId": "com.waoowaoo.desktop",
     "productName": "waoowaoo",
     "asar": false,
+    "afterPack": "scripts/desktop/after-pack-prisma.cjs",
     "directories": {
       "output": "dist/desktop"
     },
