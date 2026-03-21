@@ -22,6 +22,11 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.5
+
       - name: Install Dependencies
         run: npm ci
 

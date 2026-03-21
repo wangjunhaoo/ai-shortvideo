@@ -102,6 +102,36 @@ function isPrismaClientInitialized(appRoot) {
   }
 }
 
+function assertModuleResolvable(moduleName, fromDir) {
+  try {
+    require.resolve(moduleName, { paths: [fromDir] })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`安装包依赖校验失败: ${moduleName}\nfrom: ${fromDir}\nreason: ${reason}`)
+  }
+}
+
+function ensurePackagedRuntimeDependencies(runtime) {
+  if (!app.isPackaged) return
+
+  const requiredPaths = [
+    path.join(runtime.appRoot, 'node_modules', 'next', 'dist', 'bin', 'next'),
+    path.join(runtime.appRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+    path.join(runtime.appRoot, 'src', 'lib', 'workers', 'index.ts'),
+    path.join(runtime.appRoot, 'scripts', 'watchdog.ts'),
+  ]
+
+  for (const filePath of requiredPaths) {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`安装包运行文件缺失: ${filePath}`)
+    }
+  }
+
+  assertModuleResolvable('bullmq', runtime.appRoot)
+  assertModuleResolvable('ioredis', runtime.appRoot)
+  assertModuleResolvable('@ioredis/commands', path.join(runtime.appRoot, 'node_modules', 'bullmq'))
+}
+
 function buildSpawnEnv(runtimeEnv) {
   return {
     ...process.env,
@@ -302,6 +332,8 @@ async function startManagedRuntime(runtime) {
   if (!redisBinaryPath) {
     throw new Error('未找到 redis-server.exe，请先执行 desktop:sync:redis:win 或在 CI 中下载 Redis 二进制。')
   }
+
+  ensurePackagedRuntimeDependencies(runtime)
 
   logDesktop('准备数据库结构')
   await ensurePrismaClientReady(runtime)
