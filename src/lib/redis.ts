@@ -17,6 +17,19 @@ const REDIS_USERNAME = process.env.REDIS_USERNAME
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD
 const REDIS_TLS = process.env.REDIS_TLS === 'true'
 const IS_TEST_ENV = process.env.NODE_ENV === 'test'
+const IS_BUILD_PHASE = (() => {
+  const phase = (process.env.NEXT_PHASE || '').trim().toLowerCase()
+  if (phase === 'phase-production-build') return true
+
+  const lifecycle = (process.env.npm_lifecycle_event || '').trim().toLowerCase()
+  if (lifecycle === 'build' || lifecycle === 'desktop:build:web') return true
+
+  const argv = process.argv.map((arg) => arg.toLowerCase())
+  const hasBuildArg = argv.includes('build')
+  const fromNextBin = argv.some((arg) => arg.includes('next/dist/bin/next') || arg.endsWith('/next') || arg.endsWith('\\next'))
+  return hasBuildArg && fromNextBin
+})()
+const SHOULD_LAZY_CONNECT = IS_TEST_ENV || IS_BUILD_PHASE
 
 function buildBaseConfig() {
   return {
@@ -26,7 +39,8 @@ function buildBaseConfig() {
     password: REDIS_PASSWORD,
     tls: REDIS_TLS ? {} : undefined,
     enableReadyCheck: true,
-    lazyConnect: IS_TEST_ENV,
+    // 构建阶段与测试阶段避免导入即连 Redis，降低打包噪声并避免无意义重试。
+    lazyConnect: SHOULD_LAZY_CONNECT,
     retryStrategy(times: number) {
       // Exponential backoff capped at 30s.
       return Math.min(2 ** Math.min(times, 10) * 100, 30_000)

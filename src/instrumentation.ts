@@ -1,7 +1,25 @@
 // Next.js Instrumentation - 在应用启动时执行
 // https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
 
+function isNextBuildPhase(): boolean {
+  const phase = (process.env.NEXT_PHASE || '').trim().toLowerCase()
+  if (phase === 'phase-production-build') return true
+
+  const lifecycle = (process.env.npm_lifecycle_event || '').trim().toLowerCase()
+  if (lifecycle === 'build' || lifecycle === 'desktop:build:web') return true
+
+  const argv = process.argv.map((arg) => arg.toLowerCase())
+  const hasBuildArg = argv.includes('build')
+  const fromNextBin = argv.some((arg) => arg.includes('next/dist/bin/next') || arg.endsWith('/next') || arg.endsWith('\\next'))
+  return hasBuildArg && fromNextBin
+}
+
 export async function register() {
+  // 构建阶段不执行运行时初始化，避免在打包期间触发 Redis/队列副作用。
+  if (isNextBuildPhase()) {
+    return
+  }
+
   // 在 Edge Runtime 中直接返回，避免加载 Prisma（它使用了动态代码生成）
   if (process.env.NEXT_RUNTIME === 'edge') {
     return
