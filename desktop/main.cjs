@@ -97,7 +97,7 @@ function buildSpawnEnv(runtimeEnv) {
   }
 }
 
-function registerManagedProcess(name, child, logFilePath) {
+function registerManagedProcess(name, child, logFilePath, critical = true) {
   managedChildren.push({ name, child })
 
   child.stdout?.on('data', (chunk) => appendProcessLog(logFilePath, `${name}:stdout`, chunk))
@@ -107,13 +107,17 @@ function registerManagedProcess(name, child, logFilePath) {
     if (isShuttingDown) return
     const reason = `进程 ${name} 意外退出（code=${code ?? 'null'}, signal=${signal ?? 'null'}）`
     appendProcessLog(logFilePath, `${name}:system`, `${reason}\n`)
+    if (!critical) {
+      logDesktop('非关键进程退出，应用继续运行', { name, code, signal })
+      return
+    }
     dialog.showErrorBox('waoowaoo 运行异常', `${reason}\n请重启应用，若仍失败请查看日志目录。`)
     app.quit()
   })
 }
 
 function spawnNodeProcess(params) {
-  const { name, appRoot, args, runtimeEnv, logsDir } = params
+  const { name, appRoot, args, runtimeEnv, logsDir, critical = true } = params
   const logFilePath = path.join(logsDir, `desktop-${name}.log`)
   const child = spawn(process.execPath, args, {
     cwd: appRoot,
@@ -121,7 +125,7 @@ function spawnNodeProcess(params) {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
-  registerManagedProcess(name, child, logFilePath)
+  registerManagedProcess(name, child, logFilePath, critical)
   return child
 }
 
@@ -315,6 +319,7 @@ async function startManagedRuntime(runtime) {
     appRoot: runtime.appRoot,
     runtimeEnv: runtime.runtimeEnv,
     logsDir: runtime.logsDir,
+    critical: false,
     args: [
       path.join('node_modules', 'tsx', 'dist', 'cli.mjs'),
       '--env-file',
