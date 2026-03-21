@@ -212,6 +212,7 @@
       "postcss.config.mjs",
       "tsconfig.json",
       "package.json",
+      "node_modules/.prisma/**/*",
       "node_modules/**/*"
     ],
     "extraResources": [
