@@ -22,7 +22,7 @@
     "desktop:prisma:generate:sqlite": "node ./node_modules/prisma/build/index.js generate --schema prisma/schema.sqlite.prisma",
     "desktop:build:web": "next build",
     "desktop:clean": "node -e \"require('node:fs').rmSync('dist/desktop',{recursive:true,force:true})\"",
-    "desktop:deps:install": "node scripts/desktop/install-deps.cjs",
+    "desktop:deps:install": "node -e \"const fs=require('node:fs');const cp=require('node:child_process');const npm=process.platform==='win32'?'npm.cmd':'npm';const run=(args,label)=>{console.log('[desktop][deps] 开始执行: '+label);const r=cp.spawnSync(npm,args,{stdio:'inherit',env:process.env});if(r.error)throw r.error;return r.status??1};const hasLock=fs.existsSync('package-lock.json');if(hasLock){const ciCode=run(['ci','--include=optional'],'npm ci --include=optional');if(ciCode===0)process.exit(0);console.warn('[desktop][deps] npm ci 失败，回退到 npm install --include=optional')}else{console.warn('[desktop][deps] 未找到 package-lock.json，回退到 npm install --include=optional')}process.exit(run(['install','--include=optional'],'npm install --include=optional'));\"",
     "desktop:prepare": "npm run desktop:clean && npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
     "desktop:run": "electron ./desktop/main.cjs",
     "desktop:pack": "electron-builder --win nsis --publish never",
