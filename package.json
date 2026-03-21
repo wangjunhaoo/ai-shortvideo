@@ -207,6 +207,8 @@
     "appId": "com.waoowaoo.desktop",
     "productName": "waoowaoo",
     "asar": false,
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
     "afterPack": "scripts/desktop/after-pack-prisma.cjs",
     "directories": {
       "output": "dist/desktop"
