@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 PanelCard.tsx。新增 hooks/usePanelCardSectionProps.ts，把 ImageSection、侧边动作区和编辑区三段子视图的 props 聚合从主组件中抽出。这样 PanelCard.tsx 现在主要负责外层 GlassSurface 壳、删除按钮和三段子视图分发，不再自己承载整段 ImageSection / PanelCardSideActions / PanelCardEditorSection 参数组装。desktop:build:web 已通过。

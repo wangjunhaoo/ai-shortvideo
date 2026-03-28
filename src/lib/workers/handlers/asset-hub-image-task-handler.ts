@@ -1,7 +1,8 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { addCharacterPromptSuffix, addLocationPromptSuffix, getArtStylePrompt } from '@/lib/constants'
-import { type TaskJobData } from '@/lib/task/types'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
 import { PRIMARY_APPEARANCE_INDEX } from '@/lib/constants'
@@ -15,48 +16,9 @@ import {
   parseJsonStringArray,
 } from './image-task-handler-shared'
 
-interface GlobalCharacterAppearanceRecord {
-  id: string
-  appearanceIndex: number
-  changeReason: string | null
-  description: string | null
-  descriptions: string | null
-}
-
-interface GlobalCharacterRecord {
-  id: string
-  name: string
-  appearances: GlobalCharacterAppearanceRecord[]
-}
-
-interface GlobalLocationImageRecord {
-  id: string
-  description: string | null
-}
-
-interface GlobalLocationRecord {
-  id: string
-  name: string
-  images: GlobalLocationImageRecord[]
-}
-
-interface AssetHubImageDb {
-  globalCharacter: {
-    findFirst(args: Record<string, unknown>): Promise<GlobalCharacterRecord | null>
-  }
-  globalCharacterAppearance: {
-    update(args: Record<string, unknown>): Promise<unknown>
-  }
-  globalLocation: {
-    findFirst(args: Record<string, unknown>): Promise<GlobalLocationRecord | null>
-  }
-  globalLocationImage: {
-    update(args: Record<string, unknown>): Promise<unknown>
-  }
-}
-
-export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
-  const db = prisma as unknown as AssetHubImageDb
+export async function handleAssetHubImageTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const assetHubRepository = context.repositories.assetHub
   const payload = (job.data.payload || {}) as AnyObj
   const userId = job.data.userId
   const userModels = await getUserModels(userId)
@@ -69,10 +31,7 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
     const characterId = typeof payload.id === 'string' ? payload.id : null
     if (!characterId) throw new Error('Global character id missing')
 
-    const character = await db.globalCharacter.findFirst({
-      where: { id: characterId, userId },
-      include: { appearances: { orderBy: { appearanceIndex: 'asc' } } },
-    })
+    const character = await assetHubRepository.getGlobalCharacterWithAppearances(characterId, userId)
 
     if (!character) throw new Error('Global character not found')
 
@@ -107,13 +66,10 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
     }
 
     await assertTaskActive(job, 'persist_global_character_image')
-    await db.globalCharacterAppearance.update({
-      where: { id: appearance.id },
-      data: {
-        imageUrls: encodeImageUrls(imageUrls),
-        imageUrl: imageUrls[0] || null,
-        selectedIndex: null,
-      },
+    await assetHubRepository.updateGlobalCharacterAppearance(appearance.id, {
+      imageUrls: encodeImageUrls(imageUrls),
+      imageUrl: imageUrls[0] || null,
+      selectedIndex: null,
     })
 
     return { type: payload.type, appearanceId: appearance.id, imageCount: imageUrls.length }
@@ -123,10 +79,7 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
     const locationId = typeof payload.id === 'string' ? payload.id : null
     if (!locationId) throw new Error('Global location id missing')
 
-    const location = await db.globalLocation.findFirst({
-      where: { id: locationId, userId },
-      include: { images: { orderBy: { imageIndex: 'asc' } } },
-    })
+    const location = await assetHubRepository.getGlobalLocationWithImages(locationId, userId)
 
     if (!location || !location.images?.length) throw new Error('Global location not found')
 
@@ -156,10 +109,7 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
       })
 
       await assertTaskActive(job, 'persist_global_location_image')
-      await db.globalLocationImage.update({
-        where: { id: image.id },
-        data: { imageUrl: cosKey },
-      })
+      await assetHubRepository.updateGlobalLocationImage(image.id, { imageUrl: cosKey })
     }
 
     return { type: payload.type, locationId: location.id, imageCount: targetImages.length }
@@ -167,3 +117,6 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
 
   throw new Error(`Unsupported asset-hub image type: ${String(payload.type)}`)
 }
+
+
+

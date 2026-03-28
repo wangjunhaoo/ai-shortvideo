@@ -1,0 +1,1 @@
+2026-03-27：清理 next-auth 依赖元数据残留。已从 pnpm-lock.yaml 中删除 @next-auth/prisma-adapter 与 next-auth 的 importer 条目和 package block；结合此前对 package.json 与 package-lock.json 的清理，当前三个依赖元数据文件中已不再保留 next-auth / @next-auth/prisma-adapter。全文搜索后，代码侧只剩 src/types/next-auth.d.ts 与 packages/engine/services/next-auth-bridge-service.ts 的迁移注释文本。

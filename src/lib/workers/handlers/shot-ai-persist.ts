@@ -1,5 +1,6 @@
-import { prisma } from '@/lib/prisma'
-import { composeModelKey, parseModelKeyStrict } from '@/lib/model-config-contract'
+import { composeModelKey, parseModelKeyStrict } from '@core/model-config-contract'
+import type { ProjectRepository } from '@engine/repositories/project-repository'
+import type { UserPreferenceRepository } from '@engine/repositories/user-preference-repository'
 
 function normalizeModelKey(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -10,42 +11,39 @@ function normalizeModelKey(value: unknown): string | null {
   return composeModelKey(parsed.provider, parsed.modelId)
 }
 
-export async function resolveAnalysisModel(projectId: string, userId: string): Promise<{
+export async function resolveAnalysisModel(input: {
+  projectId: string
+  userId: string
+  projectRepository: Pick<ProjectRepository, 'getProjectAnalysisContext'>
+  userPreferenceRepository: Pick<UserPreferenceRepository, 'getAnalysisModel'>
+}): Promise<{
   id: string
   analysisModel: string
 }> {
-  const [novelData, userPreference] = await Promise.all([
-    prisma.novelPromotionProject.findUnique({
-      where: { projectId },
-      select: { id: true, analysisModel: true },
-    }),
-    prisma.userPreference.findUnique({
-      where: { userId },
-      select: { analysisModel: true },
-    }),
+  const [projectContext, userPreferenceAnalysisModel] = await Promise.all([
+    input.projectRepository.getProjectAnalysisContext(input.projectId),
+    input.userPreferenceRepository.getAnalysisModel(input.userId),
   ])
-  if (!novelData) throw new Error('Novel promotion project not found')
+  if (!projectContext) throw new Error('Novel promotion project not found')
 
   // 优先读项目配置，fallback 到用户全局设置
   const analysisModel =
-    normalizeModelKey(novelData.analysisModel) ??
-    normalizeModelKey(userPreference?.analysisModel)
+    normalizeModelKey(projectContext.analysisModel) ??
+    userPreferenceAnalysisModel
   if (!analysisModel) throw new Error('请先在项目设置中配置分析模型')
 
-  return { id: novelData.id, analysisModel }
+  return { id: projectContext.novelPromotionProjectId, analysisModel }
 }
 
-export async function requireProjectLocation(locationId: string, projectInternalId: string) {
-  const location = await prisma.novelPromotionLocation.findFirst({
-    where: {
-      id: locationId,
-      novelPromotionProjectId: projectInternalId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  })
+export async function requireProjectLocation(input: {
+  locationId: string
+  projectInternalId: string
+  projectRepository: Pick<ProjectRepository, 'getProjectLocation'>
+}) {
+  const location = await input.projectRepository.getProjectLocation(
+    input.locationId,
+    input.projectInternalId,
+  )
   if (!location) throw new Error('Location not found')
   return location
 }
@@ -54,25 +52,13 @@ export async function persistLocationDescription(params: {
   locationId: string
   imageIndex: number
   modifiedDescription: string
+  projectRepository: Pick<ProjectRepository, 'updateLocationImageDescription'>
 }) {
-  const locationImage = await prisma.locationImage.findFirst({
-    where: {
-      locationId: params.locationId,
-      imageIndex: params.imageIndex,
-    },
-    select: {
-      id: true,
-    },
-  })
-  if (!locationImage) throw new Error('Location image not found')
-
-  await prisma.locationImage.update({
-    where: { id: locationImage.id },
-    data: { description: params.modifiedDescription },
-  })
-
-  return await prisma.novelPromotionLocation.findUnique({
-    where: { id: params.locationId },
-    include: { images: { orderBy: { imageIndex: 'asc' } } },
+  return await params.projectRepository.updateLocationImageDescription({
+    locationId: params.locationId,
+    imageIndex: params.imageIndex,
+    modifiedDescription: params.modifiedDescription,
   })
 }
+
+

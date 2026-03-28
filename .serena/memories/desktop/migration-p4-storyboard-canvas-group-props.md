@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardCanvasItem.tsx。新增 hooks/useStoryboardCanvasItemGroupProps.ts，把 StoryboardGroup 的长 props 桥接从单项组件中抽出。这样 StoryboardCanvasItem.tsx 现在主要负责状态 hook、StoryboardGroup 分发和插入按钮分发，不再直接承载整段 StoryboardGroup 参数组装。desktop:build:web 已通过。

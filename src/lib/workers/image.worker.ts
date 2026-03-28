@@ -1,8 +1,8 @@
-import { Worker, type Job } from 'bullmq'
-import { queueConnection } from '@/lib/redis'
-import { QUEUE_NAME } from '@/lib/task/queues'
+import type { Worker } from 'bullmq'
+import type { WorkerTaskJob } from '@engine/runtime-context'
+import { QUEUE_NAME } from '@/lib/task/queue-contract'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
-import { getUserWorkflowConcurrencyConfig } from '@/lib/config-service'
+import { getUserWorkflowConcurrencyConfig } from '@engine/config-service'
 import { reportTaskProgress, withTaskLifecycle } from './shared'
 import { withUserConcurrencyGate } from './user-concurrency-gate'
 import {
@@ -17,7 +17,7 @@ import {
 
 type AnyObj = Record<string, unknown>
 
-async function processImageTask(job: Job<TaskJobData>) {
+export async function processImageTask(job: WorkerTaskJob) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
@@ -47,21 +47,33 @@ async function processImageTask(job: Job<TaskJobData>) {
   }
 }
 
-export function createImageWorker() {
+export async function runImageTaskJob(job: WorkerTaskJob) {
+  const workflowConcurrency = await getUserWorkflowConcurrencyConfig(job.data.userId)
+  return await withTaskLifecycle(job, async (taskJob) => {
+    return await withUserConcurrencyGate({
+      scope: 'image',
+      userId: taskJob.data.userId,
+      limit: workflowConcurrency.image,
+      run: async () => await processImageTask(taskJob),
+    })
+  })
+}
+
+export async function createImageWorker(): Promise<Worker<TaskJobData>> {
+  const [{ Worker }, { queueConnection }] = await Promise.all([
+    import('bullmq'),
+    import('../redis'),
+  ])
+
   return new Worker<TaskJobData>(
     QUEUE_NAME.IMAGE,
-    async (job) => await withTaskLifecycle(job, async (taskJob) => {
-      const workflowConcurrency = await getUserWorkflowConcurrencyConfig(taskJob.data.userId)
-      return await withUserConcurrencyGate({
-        scope: 'image',
-        userId: taskJob.data.userId,
-        limit: workflowConcurrency.image,
-        run: async () => await processImageTask(taskJob),
-      })
-    }),
+    async (job) => await runImageTaskJob(job),
     {
       connection: queueConnection,
       concurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY_IMAGE || '20', 10) || 20,
     },
   )
 }
+
+
+

@@ -1,0 +1,1 @@
+2026-03-25：继续上提 storyboard 的主弹窗分发链翻译边界。StoryboardStageModals.types.ts 新增 StoryboardStagePrimaryModalLabels；StoryboardStagePrimaryModals.tsx 改成只接收显式 labels，不再自己依赖 useTranslations；hooks/useStoryboardStageSectionProps.ts、hooks/useStoryboardStageRuntime.ts 与 index.tsx 已把 image-edit 和 ai-data 两条主弹窗链的 labels 提升到 StoryboardStage 根入口组装。desktop:build:web 已通过。

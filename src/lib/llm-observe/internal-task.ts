@@ -1,10 +1,8 @@
-import type { NextRequest } from 'next/server'
-
 /**
  * Whether current request is executed by internal task worker.
  * Keep consistent with internal auth rules in `api-auth`.
  */
-export function isInternalTaskExecution(request: NextRequest): boolean {
+export function isInternalTaskExecution(request: Request): boolean {
   const userId = request.headers.get('x-internal-user-id') || ''
   if (!userId) return false
 

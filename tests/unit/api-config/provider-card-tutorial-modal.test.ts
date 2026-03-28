@@ -2,9 +2,9 @@ import * as React from 'react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { UseProviderCardStateResult } from '@/app/[locale]/profile/components/api-config/provider-card/hooks/useProviderCardState'
-import { ProviderCardShell } from '@/app/[locale]/profile/components/api-config/provider-card/ProviderCardShell'
-import type { ProviderTutorial } from '@/app/[locale]/profile/components/api-config/types'
+import type { UseProviderCardStateResult } from '@renderer/modules/profile/components/api-config/provider-card/hooks/useProviderCardState'
+import { ProviderCardShell } from '@renderer/modules/profile/components/api-config/provider-card/ProviderCardShell'
+import type { ProviderTutorial } from '@renderer/modules/profile/components/api-config/types'
 
 const portalMocks = vi.hoisted(() => {
   return {
@@ -180,3 +180,4 @@ describe('ProviderCardShell tutorial modal', () => {
     expect(html).toContain('href="https://example.com/ark-key"')
   })
 })
+

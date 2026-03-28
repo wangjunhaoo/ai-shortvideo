@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardGroup.tsx。新增 hooks/useStoryboardGroupRuntime.ts，把插入/变体 runtime、任务错误映射、组级视图状态和 section props 装配统一收进上层 group runtime。这样 StoryboardGroup.tsx 现在主要负责容器 class 分发，以及 StoryboardGroupChrome、StoryboardGroupClipSection、StoryboardPanelList、StoryboardGroupDialogs 四段视图分发，不再自己串联四个 runtime hook。desktop:build:web 已通过。

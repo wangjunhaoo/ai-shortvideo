@@ -1,12 +1,14 @@
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import { validateProfileData, stringifyProfileData } from '@/types/character-profile'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
+import { TASK_TYPE } from '@/lib/task/types'
 import {
   type AnyObj,
   parseVisualResponse,
@@ -15,27 +17,27 @@ import {
   resolveProjectModel,
 } from './character-profile-helpers'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
 type ConfirmProfileOptions = {
   suppressProgress?: boolean
 }
 
 async function handleConfirmProfile(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   payload: AnyObj,
   options: ConfirmProfileOptions = {},
 ) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const suppressProgress = options.suppressProgress === true
   const characterId = readRequiredString(payload.characterId, 'characterId')
-  const project = await resolveProjectModel(job.data.projectId)
+  const project = await resolveProjectModel(projectRepository, job.data.projectId)
 
-  const character = await prisma.novelPromotionCharacter.findFirst({
-    where: {
-      id: characterId,
-      novelPromotionProjectId: project.novelPromotionData!.id,
-    },
-  })
+  const character = await projectRepository.getCharacterProfileTarget(
+    characterId,
+    project.novelPromotionProjectId,
+  )
   if (!character) {
     throw new Error('Character not found')
   }
@@ -47,10 +49,7 @@ async function handleConfirmProfile(
     }
     finalProfileData = stringifyProfileData(payload.profileData)
     await assertTaskActive(job, 'character_profile_confirm_update_profile')
-    await prisma.novelPromotionCharacter.update({
-      where: { id: characterId },
-      data: { profileData: finalProfileData },
-    })
+    await projectRepository.updateCharacterProfileData(characterId, finalProfileData)
   }
 
   if (!finalProfileData) {
@@ -91,7 +90,7 @@ async function handleConfirmProfile(
     async () =>
       await executeAiTextStep({
         userId: job.data.userId,
-        model: project.novelPromotionData!.analysisModel!,
+        model: project.analysisModel,
         messages: [{ role: 'user', content: promptTemplate }],
         temperature: 0.7,
         projectId: job.data.projectId,
@@ -134,23 +133,18 @@ async function handleConfirmProfile(
     await assertTaskActive(job, 'character_profile_confirm_create_appearance')
     const descriptions = Array.isArray(app.descriptions) ? app.descriptions : []
     const normalizedDescriptions = descriptions.map((item) => readText(item)).filter(Boolean)
-    await prisma.characterAppearance.create({
-      data: {
-        characterId: character.id,
-        appearanceIndex: appIndex,
-        changeReason: readText(app.change_reason) || '初始形象',
-        description: normalizedDescriptions[0] || '',
-        descriptions: JSON.stringify(normalizedDescriptions),
-        imageUrls: encodeImageUrls([]),
-        previousImageUrls: encodeImageUrls([]),
-      },
+    await projectRepository.createCharacterAppearance({
+      characterId: character.id,
+      appearanceIndex: appIndex,
+      changeReason: readText(app.change_reason) || '初始形象',
+      description: normalizedDescriptions[0] || '',
+      descriptions: JSON.stringify(normalizedDescriptions),
+      imageUrls: encodeImageUrls([]),
+      previousImageUrls: encodeImageUrls([]),
     })
   }
 
-  await prisma.novelPromotionCharacter.update({
-    where: { id: characterId },
-    data: { profileConfirmed: true },
-  })
+  await projectRepository.markCharacterProfileConfirmed(characterId)
 
   if (!suppressProgress) {
     await reportTaskProgress(job, 96, {
@@ -171,16 +165,14 @@ async function handleConfirmProfile(
   }
 }
 
-async function handleBatchConfirmProfile(job: Job<TaskJobData>) {
-  const project = await resolveProjectModel(job.data.projectId)
+async function handleBatchConfirmProfile(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const project = await resolveProjectModel(projectRepository, job.data.projectId)
 
-  const unconfirmedCharacters = await prisma.novelPromotionCharacter.findMany({
-    where: {
-      novelPromotionProjectId: project.novelPromotionData!.id,
-      profileConfirmed: false,
-      profileData: { not: null },
-    },
-  })
+  const unconfirmedCharacters = await projectRepository.listUnconfirmedCharacterProfiles(
+    project.novelPromotionProjectId,
+  )
 
   if (unconfirmedCharacters.length === 0) {
     return {
@@ -229,7 +221,7 @@ async function handleBatchConfirmProfile(job: Job<TaskJobData>) {
   }
 }
 
-export async function handleCharacterProfileTask(job: Job<TaskJobData>) {
+export async function handleCharacterProfileTask(job: WorkerTaskJob) {
   const payload = (job.data.payload || {}) as AnyObj
   switch (job.data.type) {
     case TASK_TYPE.CHARACTER_PROFILE_CONFIRM:
@@ -240,3 +232,7 @@ export async function handleCharacterProfileTask(job: Job<TaskJobData>) {
       throw new Error(`Unsupported character profile task type: ${job.data.type}`)
   }
 }
+
+
+
+

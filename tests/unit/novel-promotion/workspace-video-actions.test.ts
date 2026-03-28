@@ -35,7 +35,7 @@ vi.mock('@/lib/query/hooks', () => ({
   }),
 }))
 
-import { useWorkspaceVideoActions } from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/hooks/useWorkspaceVideoActions'
+import { useWorkspaceVideoActions } from '@renderer/modules/project-detail/novel-promotion/hooks/useWorkspaceVideoActions'
 
 describe('useWorkspaceVideoActions', () => {
   const originalAlert = globalThis.alert
@@ -69,3 +69,4 @@ describe('useWorkspaceVideoActions', () => {
     expect(globalThis.alert).toHaveBeenCalledWith('execution.generationFailed: video submit failed')
   })
 })
+

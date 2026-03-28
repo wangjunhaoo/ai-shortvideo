@@ -1,10 +1,8 @@
-import type { Job } from 'bullmq'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { type InternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import type { LLMStreamKind } from '@/lib/llm-observe/types'
 import { TaskTerminatedError } from '@/lib/task/errors'
-import { isTaskActive } from '@/lib/task/service'
 import { reportTaskProgress, reportTaskStreamChunk } from '@/lib/workers/shared'
-import type { TaskJobData } from '@/lib/task/types'
 import { assertTaskActive } from '@/lib/workers/utils'
 
 export type WorkerLLMStreamContext = {
@@ -21,7 +19,7 @@ export type WorkerLLMActiveController = {
   isActive?: () => Promise<boolean>
 }
 
-export function createWorkerLLMStreamContext(job: Job<TaskJobData>, label = 'worker'): WorkerLLMStreamContext {
+export function createWorkerLLMStreamContext(job: WorkerTaskJob, label = 'worker'): WorkerLLMStreamContext {
   return {
     streamRunId: `run:${job.data.taskId}:${label}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
     nextSeqByStepLane: {},
@@ -36,7 +34,7 @@ function nextWorkerStreamSeq(streamContext: WorkerLLMStreamContext, stepId: stri
 }
 
 export function createWorkerLLMStreamCallbacks(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   streamContext: WorkerLLMStreamContext,
   activeController?: WorkerLLMActiveController,
 ): WorkerInternalLLMStreamCallbacks {
@@ -72,7 +70,7 @@ export function createWorkerLLMStreamCallbacks(
     if (activeController?.isActive) {
       return await activeController.isActive()
     }
-    return await isTaskActive(job.data.taskId)
+    return await createTaskExecutionContext(job).repositories.task.isActive(job.data.taskId)
   }
 
   const scheduleActiveProbe = () => {
@@ -272,3 +270,6 @@ export function createWorkerLLMStreamCallbacks(
     },
   }
 }
+
+
+

@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 ImageEditModal.tsx。更新 ImageEditModal.types.ts，新增头部、提示词区、主体内容区和辅助弹窗区的 props 契约；新增 ImageEditModalHeader.tsx、ImageEditModalPromptSection.tsx、ImageEditModalBody.tsx、ImageEditModalAuxiliaryOverlays.tsx，分别承接 modal 头部、提示词输入、主体内容和资产选择/图片预览弹窗桥接。这样 ImageEditModal.tsx 现在主要负责项目资产查询、状态 hook 和外层壳层分发。desktop:build:web 已通过。

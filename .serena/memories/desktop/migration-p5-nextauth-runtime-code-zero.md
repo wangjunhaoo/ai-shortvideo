@@ -1,0 +1,1 @@
+2026-03-27：next-auth 已退出认证运行时代码主链。packages/engine/services/next-auth-bridge-service.ts 现为废弃占位模块，不再 import next-auth 或 @next-auth/prisma-adapter；src/types/next-auth.d.ts 已退成迁移占位。engine-auth-provider-boundary-guard 已收紧为禁止 packages/engine 与 src/app/api/auth 直接 import next-auth 或 bridge。当前 next-auth 仅剩 package.json/package-lock 元数据与兼容 route 路径名，后续如需彻底删依赖需要单独确认包管理变更。

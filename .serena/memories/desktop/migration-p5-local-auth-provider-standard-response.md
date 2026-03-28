@@ -1,0 +1,1 @@
+2026-03-27：local-auth-provider-service 不再依赖 NextRequest/NextResponse/request.nextUrl。新增原生 cookie 头序列化与读取：serializeCookie、appendSetCookie、readRequestCookie，并将 session/csrf/login/logout 路径改成标准 Request/Response。auth-provider-service 与 auth-compat-route-service 也已切到标准 Request/Response；兼容 catch-all 仍保留 Deprecation/Sunset/Link/X-Auth-Compat-Route 标头，但只作为兼容壳。构建通过。

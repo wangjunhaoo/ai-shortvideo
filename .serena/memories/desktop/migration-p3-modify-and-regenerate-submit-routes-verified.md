@@ -1,0 +1,1 @@
+2026-03-22：scripts/desktop/verify-modify-image-submit-routes.mjs 已修复 SQLite 回查阶段的 database is locked 问题。脚本新增 withDbRetry、busy_timeout 和提交后短暂等待，针对 tasks / graph_runs 的读取在锁竞争时自动重试。最新一轮真实桌面回归已通过，覆盖 modify-asset-image、modify-storyboard-image、regenerate-group、regenerate-single-image 四组提交接口，确认 API 提交、task 入库、graph_runs.input 校验和图片输入归一化审计均稳定通过。

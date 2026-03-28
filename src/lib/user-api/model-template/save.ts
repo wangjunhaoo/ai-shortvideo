@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { composeModelKey } from '@/lib/model-config-contract'
+import { composeModelKey } from '@core/model-config-contract'
 import { getProviderKey } from '@/lib/api-config'
 import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
 
@@ -164,3 +164,4 @@ export async function saveModelTemplateConfiguration(input: SaveModelTemplateInp
 
   return { modelKey }
 }
+

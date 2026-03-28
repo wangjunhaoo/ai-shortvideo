@@ -1,16 +1,17 @@
-import type { Job } from 'bullmq'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { safeParseJsonArray } from '@/lib/json-repair'
-import { prisma } from '@/lib/prisma'
 import { getSignedUrl } from '@/lib/storage'
 import { executeAiVisionStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 import { resolveAnalysisModel } from './shot-ai-persist'
 import type { AnyObj } from './shot-ai-prompt'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
 function readText(value: unknown): string {
   return typeof value === 'string' ? value : ''
@@ -49,22 +50,18 @@ function parsePanelCharacters(value: string | null): string {
   }
 }
 
-export async function handleAnalyzeShotVariantsTask(job: Job<TaskJobData>, payload: AnyObj) {
+export async function handleAnalyzeShotVariantsTask(job: WorkerTaskJob, payload: AnyObj) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const panelId = readRequiredString(payload.panelId, 'panelId')
-  const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
-  const panel = await prisma.novelPromotionPanel.findUnique({
-    where: { id: panelId },
-    select: {
-      id: true,
-      panelNumber: true,
-      imageUrl: true,
-      description: true,
-      shotType: true,
-      cameraMove: true,
-      location: true,
-      characters: true,
-    },
+  const novelData = await resolveAnalysisModel({
+    projectId: job.data.projectId,
+    userId: job.data.userId,
+    projectRepository,
+    userPreferenceRepository,
   })
+  const panel = await projectRepository.getPanelById(panelId)
   if (!panel) throw new Error('Panel not found')
   if (!panel.imageUrl) throw new Error('该镜头还没有生成图片，无法分析变体')
 
@@ -143,3 +140,7 @@ export async function handleAnalyzeShotVariantsTask(job: Job<TaskJobData>, paylo
     },
   }
 }
+
+
+
+

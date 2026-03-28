@@ -6,7 +6,7 @@ import { logError as _ulogError } from '@/lib/logging/core'
 
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withTextBilling } from '@/lib/billing'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 import type { Locale } from '@/i18n/routing'
 
 export type AssetType = 'character' | 'location'
@@ -138,3 +138,4 @@ export async function aiDesign(options: AIDesignOptions): Promise<AIDesignResult
         prompt: parsedResponse.prompt
     }
 }
+

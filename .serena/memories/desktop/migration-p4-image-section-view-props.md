@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 ImageSection.tsx。新增 hooks/useImageSectionViewProps.ts，把容器样式、内容区、角标区和动作区的 props 聚合从主组件中抽出。这样 ImageSection.tsx 现在主要负责壳层和三段子视图分发，不再自己承载多段 bridge props 组装。desktop:build:web 已通过。

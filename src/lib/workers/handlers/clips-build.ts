@@ -1,6 +1,5 @@
-import type { Job } from 'bullmq'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { safeParseJsonArray } from '@/lib/json-repair'
-import { prisma } from '@/lib/prisma'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { buildCharactersIntroduction } from '@/lib/constants'
@@ -8,8 +7,7 @@ import { createClipContentMatcher } from '@/lib/novel-promotion/story-to-script/
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
 function parseClipArrayResponse(responseText: string): Array<Record<string, unknown>> {
@@ -28,7 +26,10 @@ const CLIP_BOUNDARY_SUFFIX = `
 2. Allow punctuation/whitespace differences, but do not rewrite key entities or events.
 3. If anchors cannot be located reliably, return [] directly.`
 
-export async function handleClipsBuildTask(job: Job<TaskJobData>) {
+export async function handleClipsBuildTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const projectId = job.data.projectId
   const episodeId = readText(payload.episodeId || job.data.episodeId).trim()
@@ -36,10 +37,7 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
     throw new Error('episodeId is required')
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true, mode: true },
-  })
+  const project = await projectRepository.getProjectMode(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -47,13 +45,7 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
     throw new Error('Not a novel promotion project')
   }
 
-  const novelData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-      locations: true,
-    },
-  })
+  const novelData = await projectRepository.getNovelProjectForAnalysis(projectId)
   if (!novelData) {
     throw new Error('Novel promotion data not found')
   }
@@ -61,17 +53,10 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
     userId: job.data.userId,
     inputModel: payload.model,
     projectAnalysisModel: novelData.analysisModel,
+    userPreferenceRepository,
   })
 
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    select: {
-      id: true,
-      name: true,
-      novelText: true,
-      novelPromotionProjectId: true,
-    },
-  })
+  const episode = await projectRepository.getEpisodeForClipBuild(episodeId)
   if (!episode) {
     throw new Error('Episode not found')
   }
@@ -203,57 +188,7 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
   })
   await assertTaskActive(job, 'clips_build_persist')
 
-  const existingClips = await prisma.novelPromotionClip.findMany({
-    where: { episodeId },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-  const createdClips: Array<{ id: string }> = []
-  for (let i = 0; i < resolvedClips.length; i += 1) {
-    const clipData = resolvedClips[i]
-    const existing = existingClips[i]
-    if (existing) {
-      const updated = await prisma.novelPromotionClip.update({
-        where: { id: existing.id },
-        data: {
-          startText: clipData.startText,
-          endText: clipData.endText,
-          summary: clipData.summary,
-          location: clipData.location,
-          characters: clipData.characters ? JSON.stringify(clipData.characters) : null,
-          content: clipData.content,
-        },
-        select: { id: true },
-      })
-      createdClips.push(updated)
-      continue
-    }
-
-    const created = await prisma.novelPromotionClip.create({
-      data: {
-        episodeId,
-        startText: clipData.startText,
-        endText: clipData.endText,
-        summary: clipData.summary,
-        location: clipData.location,
-        characters: clipData.characters ? JSON.stringify(clipData.characters) : null,
-        content: clipData.content,
-      },
-      select: { id: true },
-    })
-    createdClips.push(created)
-  }
-
-  const staleIds = existingClips.slice(resolvedClips.length).map((item) => item.id)
-  if (staleIds.length > 0) {
-    await prisma.novelPromotionClip.deleteMany({
-      where: {
-        id: {
-          in: staleIds,
-        },
-      },
-    })
-  }
+  const createdClips = await projectRepository.saveClipsForEpisode(episodeId, resolvedClips)
 
   await reportTaskProgress(job, 96, {
     stage: 'clips_build_done',
@@ -266,3 +201,7 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
     count: createdClips.length,
   }
 }
+
+
+
+

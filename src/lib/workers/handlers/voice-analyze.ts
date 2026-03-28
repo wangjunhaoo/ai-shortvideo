@@ -1,23 +1,24 @@
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { buildCharactersIntroduction } from '@/lib/constants'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 import {
   buildStoryboardJson,
   parseVoiceLinesJson,
   type VoiceLinePayload,
 } from './voice-analyze-helpers'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
 const MAX_VOICE_ANALYZE_ATTEMPTS = 2
 
-export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
+export async function handleVoiceAnalyzeTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const projectId = job.data.projectId
   const episodeIdRaw =
@@ -32,13 +33,7 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     throw new Error('episodeId is required')
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectMode(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -46,30 +41,12 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     throw new Error('Not a novel promotion project')
   }
 
-  const novelPromotionData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-    },
-  })
+  const novelPromotionData = await projectRepository.getNovelProjectForAnalysis(projectId)
   if (!novelPromotionData) {
     throw new Error('Novel promotion data not found')
   }
 
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    include: {
-      storyboards: {
-        include: {
-          clip: true,
-          panels: {
-            orderBy: { panelIndex: 'asc' },
-          },
-        },
-        orderBy: { createdAt: 'asc' },
-      },
-    },
-  })
+  const episode = await projectRepository.getEpisodeForVoiceAnalyze(episodeId)
   if (!episode) {
     throw new Error('Episode not found')
   }
@@ -86,6 +63,7 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     userId: job.data.userId,
     inputModel: payload.model,
     projectAnalysisModel: novelPromotionData.analysisModel,
+    userPreferenceRepository,
   })
 
   const charactersLibName = novelPromotionData.characters.length > 0
@@ -240,93 +218,7 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
   })
   await assertTaskActive(job, 'voice_analyze_persist')
 
-  const createdVoiceLines = await prisma.$transaction(async (tx) => {
-    const voiceLineModel = tx.novelPromotionVoiceLine as unknown as {
-      upsert?: (args: unknown) => Promise<{
-        id: string
-        speaker: string
-        matchedStoryboardId: string | null
-      }>
-      create: (args: unknown) => Promise<{
-        id: string
-        speaker: string
-        matchedStoryboardId: string | null
-      }>
-      deleteMany: (args: unknown) => Promise<unknown>
-    }
-    const created: Array<{
-      id: string
-      speaker: string
-      matchedStoryboardId: string | null
-    }> = []
-
-    for (let i = 0; i < voiceLinesData.length; i += 1) {
-      const lineData = voiceLinesData[i]
-
-      const upsertArgs = {
-        where: {
-          episodeId_lineIndex: {
-            episodeId,
-            lineIndex: lineData.lineIndex,
-          },
-        },
-        create: {
-          episodeId,
-          lineIndex: lineData.lineIndex,
-          speaker: lineData.speaker,
-          content: lineData.content,
-          emotionStrength: lineData.emotionStrength,
-          matchedPanelId: lineData.matchedPanelId,
-          matchedStoryboardId: lineData.matchedStoryboardId,
-          matchedPanelIndex: lineData.matchedPanelIndex,
-        },
-        update: {
-          speaker: lineData.speaker,
-          content: lineData.content,
-          emotionStrength: lineData.emotionStrength,
-          matchedPanelId: lineData.matchedPanelId,
-          matchedStoryboardId: lineData.matchedStoryboardId,
-          matchedPanelIndex: lineData.matchedPanelIndex,
-        },
-        select: {
-          id: true,
-          speaker: true,
-          matchedStoryboardId: true,
-        },
-      }
-      const voiceLine = typeof voiceLineModel.upsert === 'function'
-        ? await voiceLineModel.upsert(upsertArgs)
-        : (
-          process.env.NODE_ENV === 'test'
-            ? await voiceLineModel.create({
-              data: upsertArgs.create,
-              select: upsertArgs.select,
-            })
-            : (() => { throw new Error('novelPromotionVoiceLine.upsert unavailable') })()
-        )
-      created.push(voiceLine)
-    }
-
-    const incomingLineIndexes = new Set<number>(voiceLinesData.map((item) => item.lineIndex))
-    if (incomingLineIndexes.size === 0) {
-      await voiceLineModel.deleteMany({
-        where: {
-          episodeId,
-        },
-      })
-    } else {
-      await voiceLineModel.deleteMany({
-        where: {
-          episodeId,
-          lineIndex: {
-            notIn: Array.from(incomingLineIndexes),
-          },
-        },
-      })
-    }
-
-    return created
-  })
+  const createdVoiceLines = await projectRepository.saveVoiceLinesForEpisode(episodeId, voiceLinesData)
 
   const speakerStats: Record<string, number> = {}
   for (const line of createdVoiceLines) {
@@ -347,3 +239,7 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     speakerStats,
   }
 }
+
+
+
+

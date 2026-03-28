@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 useAIDataModalRuntime.ts。新增 hooks/useAIDataModalViewProps.ts，把 header/form/preview/footer 四段 view props 组装从 runtime 主 hook 中抽成独立 hook；同步保留 useAIDataModalFormPaneLabels.ts，runtime 现在更聚焦状态同步、previewJson 生成和保存生命周期。desktop:build:web 已通过。

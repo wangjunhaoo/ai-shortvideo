@@ -1,8 +1,10 @@
-import type { Job } from 'bullmq'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { removeLocationPromptSuffix } from '@/lib/constants'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import type { TaskJobData } from '@/lib/task/types'
 import {
   persistLocationDescription,
   requireProjectLocation,
@@ -10,16 +12,28 @@ import {
 } from './shot-ai-persist'
 import { runShotPromptCompletion } from './shot-ai-prompt-runtime'
 import { parseJsonObject, readRequiredString, type AnyObj } from './shot-ai-prompt-utils'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
-export async function handleModifyLocationTask(job: Job<TaskJobData>, payload: AnyObj) {
+export async function handleModifyLocationTask(job: WorkerTaskJob, payload: AnyObj) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const locationId = readRequiredString(payload.locationId, 'locationId')
   const imageIndexValue = Number(payload.imageIndex ?? 0)
   const imageIndex = Number.isFinite(imageIndexValue) ? Math.max(0, Math.floor(imageIndexValue)) : 0
   const currentDescription = readRequiredString(payload.currentDescription, 'currentDescription')
   const modifyInstruction = readRequiredString(payload.modifyInstruction, 'modifyInstruction')
-  const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
-  const location = await requireProjectLocation(locationId, novelData.id)
+  const novelData = await resolveAnalysisModel({
+    projectId: job.data.projectId,
+    userId: job.data.userId,
+    projectRepository,
+    userPreferenceRepository,
+  })
+  const location = await requireProjectLocation({
+    locationId,
+    projectInternalId: novelData.id,
+    projectRepository,
+  })
 
   const finalPrompt = buildPrompt({
     promptId: PROMPT_IDS.NP_LOCATION_MODIFY,
@@ -58,6 +72,7 @@ export async function handleModifyLocationTask(job: Job<TaskJobData>, payload: A
     locationId,
     imageIndex,
     modifiedDescription,
+    projectRepository,
   })
 
   await reportTaskProgress(job, 96, {
@@ -74,3 +89,7 @@ export async function handleModifyLocationTask(job: Job<TaskJobData>, payload: A
     location: updatedLocation,
   }
 }
+
+
+
+

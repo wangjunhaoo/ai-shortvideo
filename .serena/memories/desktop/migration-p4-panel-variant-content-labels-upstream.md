@@ -1,0 +1,1 @@
+2026-03-25：继续上提 storyboard 的 PanelVariantModalContent 翻译边界。PanelVariantModal.types.ts 与 PanelVariantModalSuggestionList.types.ts 已补齐 suggestion-list 显式 labels 契约；PanelVariantModal.tsx 根 modal 统一组装 suggestionListLabels；PanelVariantModalContent.tsx 已清掉 useTranslations，改成只接收 suggestionListLabels 做内容分发。desktop:build:web 已通过。

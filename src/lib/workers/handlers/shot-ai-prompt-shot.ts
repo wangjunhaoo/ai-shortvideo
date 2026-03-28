@@ -1,7 +1,9 @@
-import type { Job } from 'bullmq'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import type { TaskJobData } from '@/lib/task/types'
 import { resolveAnalysisModel } from './shot-ai-persist'
 import { runShotPromptCompletion } from './shot-ai-prompt-runtime'
 import {
@@ -10,14 +12,22 @@ import {
   readText,
   type AnyObj,
 } from './shot-ai-prompt-utils'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
-export async function handleModifyShotPromptTask(job: Job<TaskJobData>, payload: AnyObj) {
+export async function handleModifyShotPromptTask(job: WorkerTaskJob, payload: AnyObj) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const currentPrompt = readRequiredString(payload.currentPrompt, 'currentPrompt')
   const currentVideoPrompt = readText(payload.currentVideoPrompt)
   const modifyInstruction = readRequiredString(payload.modifyInstruction, 'modifyInstruction')
   const referencedAssets = Array.isArray(payload.referencedAssets) ? payload.referencedAssets : []
-  const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
+  const novelData = await resolveAnalysisModel({
+    projectId: job.data.projectId,
+    userId: job.data.userId,
+    projectRepository,
+    userPreferenceRepository,
+  })
 
   const assetDescriptions = referencedAssets
     .map((asset) => {
@@ -76,3 +86,7 @@ export async function handleModifyShotPromptTask(job: Job<TaskJobData>, payload:
     referencedAssets,
   }
 }
+
+
+
+

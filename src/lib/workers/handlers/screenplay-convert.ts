@@ -1,5 +1,4 @@
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { buildCharactersIntroduction } from '@/lib/constants'
@@ -9,18 +8,20 @@ import { assertTaskActive } from '@/lib/workers/utils'
 import { logAIAnalysis } from '@/lib/logging/semantic'
 import { onProjectNameAvailable } from '@/lib/logging/file-writer'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 import {
   type AnyObj,
   parseScreenplayPayload,
   readText,
 } from './screenplay-convert-helpers'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { getPromptTemplate, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
 const MAX_SCREENPLAY_ATTEMPTS = 2
 
-export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
+export async function handleScreenplayConvertTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const episodeId = readText(payload.episodeId || job.data.episodeId).trim()
@@ -28,14 +29,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
     throw new Error('episodeId is required')
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      name: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectSummary(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -43,13 +37,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
     throw new Error('Not a novel promotion project')
   }
 
-  const novelData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-      locations: true,
-    },
-  })
+  const novelData = await projectRepository.getNovelProjectForAnalysis(projectId)
   if (!novelData) {
     throw new Error('Novel promotion data not found')
   }
@@ -57,16 +45,10 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
     userId: job.data.userId,
     inputModel: payload.model,
     projectAnalysisModel: novelData.analysisModel,
+    userPreferenceRepository,
   })
 
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    include: {
-      clips: {
-        orderBy: { createdAt: 'asc' },
-      },
-    },
-  })
+  const episode = await projectRepository.getEpisodeWithClips(episodeId)
   if (!episode) {
     throw new Error('Episode not found')
   }
@@ -191,12 +173,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
           screenplay.clip_id = clip.id
           screenplay.original_text = clipContent
 
-          await prisma.novelPromotionClip.update({
-            where: { id: clip.id },
-            data: {
-              screenplay: JSON.stringify(screenplay),
-            },
-          })
+          await projectRepository.updateClipScreenplay(clip.id, screenplay)
 
           const scenes = Array.isArray(screenplay.scenes) ? screenplay.scenes : []
           results.push({
@@ -259,3 +236,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
     results,
   }
 }
+
+
+
+

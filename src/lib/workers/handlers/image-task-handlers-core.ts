@@ -1,6 +1,7 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
-import { type TaskJobData } from '@/lib/task/types'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import {
   assertTaskActive,
@@ -31,18 +32,9 @@ import {
 
 const logger = createScopedLogger({ module: 'worker.modify-asset-image' })
 
-interface LocationImageRecord {
-  id: string
-  locationId: string
-  description: string | null
-  imageUrl: string | null
-  previousDescription: string | null
-  location: {
-    name: string
-  } | null
-}
-
-export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
+export async function handleModifyAssetImageTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const type = payload.type
   const modifyPrompt = payload.modifyPrompt
@@ -67,10 +59,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     const appearanceId = pickFirstString(payload.appearanceId, payload.targetId, job.data.targetId)
     if (!appearanceId) throw new Error('character appearance id missing')
 
-    const appearance = await prisma.characterAppearance.findUnique({
-      where: { id: appearanceId },
-      include: { character: true },
-    })
+    const appearance = await projectRepository.getCharacterAppearanceWithCharacter(appearanceId)
     if (!appearance) throw new Error('Character appearance not found')
 
     const imageIndex = Number(payload.imageIndex ?? appearance.selectedIndex ?? 0)
@@ -147,17 +136,15 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     }
 
     await assertTaskActive(job, 'persist_character_modify')
-    await prisma.characterAppearance.update({
-      where: { id: appearance.id },
-      data: {
-        previousImageUrl: appearance.imageUrl || null,
-        previousImageUrls: appearance.imageUrls,
-        previousDescription: appearance.description || null,
-        previousDescriptions: appearance.descriptions || null,
-        imageUrls: encodeImageUrls(imageUrls),
-        imageUrl: shouldUpdateMain ? cosKey : appearance.imageUrl,
-        ...(descriptionFields || {}),
-      },
+    await projectRepository.updateCharacterAppearance({
+      appearanceId: appearance.id,
+      previousImageUrl: appearance.imageUrl || null,
+      previousImageUrls: appearance.imageUrls,
+      previousDescription: appearance.description || null,
+      previousDescriptions: appearance.descriptions || null,
+      imageUrls: encodeImageUrls(imageUrls),
+      imageUrl: shouldUpdateMain ? cosKey : appearance.imageUrl,
+      ...(descriptionFields || {}),
     })
 
     return { type, appearanceId: appearance.id, imageIndex, imageUrl: cosKey }
@@ -165,19 +152,16 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
 
   if (type === 'location') {
     const locationImageId = pickFirstString(payload.locationImageId, payload.targetId, job.data.targetId)
-    let locationImage: LocationImageRecord | null = locationImageId
-      ? await prisma.locationImage.findUnique({
-        where: { id: locationImageId },
-        include: { location: true },
-      }) as unknown as LocationImageRecord | null
+    let locationImage = locationImageId
+      ? await projectRepository.getLocationImageById(locationImageId)
       : null
 
     const payloadLocationId = typeof payload.locationId === 'string' ? payload.locationId : null
     if (!locationImage && payloadLocationId) {
-      locationImage = await prisma.locationImage.findFirst({
-        where: { locationId: payloadLocationId, imageIndex: Number(payload.imageIndex ?? 0) },
-        include: { location: true },
-      }) as unknown as LocationImageRecord | null
+      locationImage = await projectRepository.getLocationImageByIndex(
+        payloadLocationId,
+        Number(payload.imageIndex ?? 0),
+      )
     }
 
     if (!locationImage || !locationImage.imageUrl) {
@@ -239,14 +223,12 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     }
 
     await assertTaskActive(job, 'persist_location_modify')
-    await prisma.locationImage.update({
-      where: { id: locationImage.id },
-      data: {
-        previousImageUrl: locationImage.imageUrl,
-        previousDescription: locationImage.description || null,
-        imageUrl: cosKey,
-        ...(extractedDescription ? { description: extractedDescription } : {}),
-      },
+    await projectRepository.updateLocationImage({
+      imageId: locationImage.id,
+      previousImageUrl: locationImage.imageUrl,
+      previousDescription: locationImage.description || null,
+      imageUrl: cosKey,
+      ...(extractedDescription ? { description: extractedDescription } : {}),
     })
 
     return { type, locationImageId: locationImage.id, imageUrl: cosKey }
@@ -255,33 +237,15 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
   if (type === 'storyboard') {
     const panelId = pickFirstString(payload.panelId, payload.targetId, job.data.targetId)
     let panel = panelId
-      ? await prisma.novelPromotionPanel.findUnique({
-        where: { id: panelId },
-        select: {
-          id: true,
-          storyboardId: true,
-          panelIndex: true,
-          imageUrl: true,
-          previousImageUrl: true,
-        },
-      })
+      ? await projectRepository.getPanelById(panelId)
       : null
 
     const storyboardId = pickFirstString(payload.storyboardId)
     if (!panel && storyboardId && payload.panelIndex !== undefined) {
-      panel = await prisma.novelPromotionPanel.findFirst({
-        where: {
-          storyboardId,
-          panelIndex: Number(payload.panelIndex),
-        },
-        select: {
-          id: true,
-          storyboardId: true,
-          panelIndex: true,
-          imageUrl: true,
-          previousImageUrl: true,
-        },
-      })
+      panel = await projectRepository.getPanelByStoryboardIndex(
+        storyboardId,
+        Number(payload.panelIndex),
+      )
     }
 
     if (!panel || !panel.imageUrl) {
@@ -291,7 +255,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     const currentUrl = toSignedUrlIfCos(panel.imageUrl, 3600)
     if (!currentUrl) throw new Error('No storyboard panel image url')
 
-    const projectData = await resolveNovelData(job.data.projectId)
+    const projectData = await resolveNovelData(job.data.projectId, projectRepository)
     if (!projectData.videoRatio) throw new Error('Project videoRatio not configured')
     const aspectRatio = projectData.videoRatio
     const requiredReference = await normalizeToBase64ForGeneration(currentUrl)
@@ -333,13 +297,11 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     const cosKey = await uploadImageSourceToCos(source, 'panel-modify', panel.id)
 
     await assertTaskActive(job, 'persist_storyboard_modify')
-    await prisma.novelPromotionPanel.update({
-      where: { id: panel.id },
-      data: {
-        previousImageUrl: panel.imageUrl || panel.previousImageUrl || null,
-        imageUrl: cosKey,
-        candidateImages: null,
-      },
+    await projectRepository.updatePanelImageState({
+      panelId: panel.id,
+      previousImageUrl: panel.imageUrl || panel.previousImageUrl || null,
+      imageUrl: cosKey,
+      candidateImages: null,
     })
 
     return {
@@ -351,3 +313,6 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
 
   throw new Error(`Unsupported modify type: ${String(type)}`)
 }
+
+
+

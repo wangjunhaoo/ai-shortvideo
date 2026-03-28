@@ -1,0 +1,1 @@
+2026-03-23：继续清理 StoryboardCanvas 这条链的翻译桥接。StoryboardCanvasInsertButton.tsx、StoryboardCanvasEmptyState.tsx 改成显式 label/title/description 契约；StoryboardCanvas.tsx 和 StoryboardCanvasItem.tsx 不再向子组件透传 t()。这一段的旧式翻译桥接已清掉。

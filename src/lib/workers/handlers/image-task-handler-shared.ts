@@ -1,7 +1,6 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
-import { type TaskJobData } from '@/lib/task/types'
+import type { WorkerTaskJob } from '@engine/runtime-context'
 import { decodeImageUrlsFromDb } from '@/lib/contracts/image-urls-contract'
+import type { ProjectRepository, WorkerNovelDataRecord } from '@engine/repositories/project-repository'
 import {
   resolveImageSourceFromGeneration,
   toSignedUrlIfCos,
@@ -29,7 +28,7 @@ interface CharacterLike {
 interface LocationImageLike {
   description?: string | null
   imageIndex?: number
-  isSelected: boolean
+  isSelected: boolean | null
   imageUrl: string | null
 }
 
@@ -38,8 +37,7 @@ interface LocationLike {
   images?: LocationImageLike[]
 }
 
-interface NovelProjectData {
-  videoRatio?: string | null
+type NovelProjectData = WorkerNovelDataRecord & {
   characters?: CharacterLike[]
   locations?: LocationLike[]
 }
@@ -53,12 +51,6 @@ interface PanelLike {
 export interface PanelCharacterReference {
   name: string
   appearance?: string
-}
-
-interface NovelDataDb {
-  novelPromotionProject: {
-    findUnique(args: Record<string, unknown>): Promise<NovelProjectData | null>
-  }
 }
 
 export function parseJsonStringArray(value: unknown): string[] {
@@ -94,7 +86,7 @@ export function pickFirstString(...values: unknown[]) {
 }
 
 export async function generateLabeledImageToCos(params: {
-  job: Job<TaskJobData>
+  job: WorkerTaskJob
   userId: string
   modelId: string
   prompt: string
@@ -119,15 +111,11 @@ export async function generateLabeledImageToCos(params: {
   return cosKey
 }
 
-export async function resolveNovelData(projectId: string) {
-  const db = prisma as unknown as NovelDataDb
-  const data = await db.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: { include: { appearances: { orderBy: { appearanceIndex: 'asc' } } } },
-      locations: { include: { images: { orderBy: { imageIndex: 'asc' } } } },
-    },
-  })
+export async function resolveNovelData(
+  projectId: string,
+  projectRepository: Pick<ProjectRepository, 'getNovelData'>,
+) {
+  const data = await projectRepository.getNovelData(projectId)
 
   if (!data) {
     throw new Error(`NovelPromotionProject not found: ${projectId}`)
@@ -224,3 +212,6 @@ export async function collectPanelReferenceImages(projectData: NovelProjectData,
 
   return refs
 }
+
+
+

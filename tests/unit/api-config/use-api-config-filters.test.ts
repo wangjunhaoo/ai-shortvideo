@@ -8,8 +8,8 @@ vi.mock('react', async () => {
   }
 })
 
-import { useApiConfigFilters } from '@/app/[locale]/profile/components/api-config-tab/hooks/useApiConfigFilters'
-import type { CustomModel, Provider } from '@/app/[locale]/profile/components/api-config/types'
+import { useApiConfigFilters } from '@renderer/modules/profile/components/api-config-tab/hooks/useApiConfigFilters'
+import type { CustomModel, Provider } from '@renderer/modules/profile/components/api-config/types'
 
 describe('api config filters', () => {
   beforeEach(() => {
@@ -117,3 +117,4 @@ describe('api config filters', () => {
     ])
   })
 })
+

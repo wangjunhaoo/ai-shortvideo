@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 PanelActionButtons.tsx。新增 PanelActionButtons.types.ts 和 PanelActionButtonItem.tsx，把面板间操作按钮组改成配置化分发。这样 PanelActionButtons.tsx 现在主要负责动作配置和列表渲染，不再直接承载两组按钮的重复 JSX 与样式拼接。desktop:build:web 已通过。

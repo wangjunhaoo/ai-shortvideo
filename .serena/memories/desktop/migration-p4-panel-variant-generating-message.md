@@ -1,0 +1,1 @@
+2026-03-24：继续上提 usePanelVariant 的显示消息边界。hooks/usePanelVariant.ts 新增 PanelVariantMessages，乐观插入占位 panel 的 generating 文案不再在 hook 内取翻译，改由 hooks/useStoryboardStageController.ts 统一组装后传入。desktop:build:web 已通过。

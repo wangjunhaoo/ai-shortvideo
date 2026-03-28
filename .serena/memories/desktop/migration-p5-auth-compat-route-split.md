@@ -1,0 +1,1 @@
+2026-03-27：新增 packages/engine/services/auth-compat-route-service.ts，把 src/app/api/auth/[...nextauth]/route.ts 降成单一兼容壳。auth-provider-service 已删除对 nextauth catch-all 参数和 callback/signout 兼容分支，只保留 session/csrf/login/logout 中性入口。兼容服务为 legacy 响应统一加 Deprecation/Sunset/Link/X-Auth-Compat-Route 头，并新增 engine-auth-compat-route-boundary-guard.mjs 限制只有 catch-all 路由能 import compat service。

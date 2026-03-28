@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardGroupChrome.tsx。新增 StoryboardGroupChrome.types.ts，统一收口状态层和主行布局的 props 契约；新增 StoryboardGroupChromeStatus.tsx，承接失败警告和任务覆盖层；新增 StoryboardGroupChromeMainRow.tsx，承接头部和动作区布局分发。这样 StoryboardGroupChrome.tsx 现在主要负责状态层和主行布局两段分发，不再直接承载整段警告、覆盖层和头部动作 JSX。desktop:build:web 已通过。

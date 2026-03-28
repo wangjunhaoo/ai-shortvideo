@@ -1,4 +1,3 @@
-import type { NextRequest } from 'next/server'
 import { ApiError } from '@/lib/api-errors'
 import { locales, type Locale } from '@/i18n/routing'
 
@@ -31,7 +30,7 @@ function readLocaleFromPayload(body?: unknown): Locale | null {
   return null
 }
 
-function readLocaleFromHeader(request: NextRequest): Locale | null {
+function readLocaleFromHeader(request: Request): Locale | null {
   const raw = request.headers.get('accept-language') || ''
   if (!raw) return null
   const first = raw.split(',')[0]?.trim() || ''
@@ -43,13 +42,13 @@ export function resolveTaskLocaleFromBody(body?: unknown): Locale | null {
   return readLocaleFromPayload(body)
 }
 
-export function resolveTaskLocale(request: NextRequest, body?: unknown): Locale | null {
+export function resolveTaskLocale(request: Request, body?: unknown): Locale | null {
   const payloadLocale = resolveTaskLocaleFromBody(body)
   if (payloadLocale) return payloadLocale
   return readLocaleFromHeader(request)
 }
 
-export function resolveRequiredTaskLocale(request: NextRequest, body?: unknown): Locale {
+export function resolveRequiredTaskLocale(request: Request, body?: unknown): Locale {
   const locale = resolveTaskLocale(request, body)
   if (!locale) {
     throw new ApiError('INVALID_PARAMS', {

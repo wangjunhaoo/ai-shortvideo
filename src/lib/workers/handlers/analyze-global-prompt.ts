@@ -1,6 +1,6 @@
 import { buildCharactersLibInfo, type CharacterBrief } from './analyze-global-parse'
 import type { Locale } from '@/i18n/routing'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { getPromptTemplate, PROMPT_IDS } from '@core/prompt-i18n'
 
 export type AnalyzeGlobalPromptTemplates = {
   characterPromptTemplate: string
@@ -31,3 +31,4 @@ export function buildAnalyzeGlobalPrompts(params: {
     locationPrompt,
   }
 }
+

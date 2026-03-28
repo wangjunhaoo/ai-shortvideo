@@ -7,7 +7,7 @@ import { mapWithConcurrency } from '@/lib/async/map-with-concurrency'
 import {
   DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   normalizeWorkflowConcurrencyValue,
-} from '@/lib/workflow-concurrency'
+} from '@core/workflow-concurrency'
 
 export type StoryToScriptStepMeta = {
   stepId: string
@@ -539,3 +539,4 @@ export async function runStoryToScriptOrchestrator(
     },
   }
 }
+

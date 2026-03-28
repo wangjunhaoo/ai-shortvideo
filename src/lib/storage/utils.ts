@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { StorageConfigError } from './errors'
 import { getInternalBaseUrl } from '@/lib/env'
 
@@ -31,6 +32,12 @@ export function isHttpUrl(value: string): boolean {
 
 export function normalizeKey(raw: string): string {
   return raw.replace(/^\/+/, '')
+}
+
+export function resolveUploadRoot(uploadDir: string): string {
+  return path.isAbsolute(uploadDir)
+    ? path.normalize(uploadDir)
+    : path.join(process.cwd(), uploadDir)
 }
 
 export async function withRetry<T>(

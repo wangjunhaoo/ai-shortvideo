@@ -1,0 +1,1 @@
+2026-03-25：继续上提 storyboard 图片区的翻译边界。为 ImageSection.types.ts 新增 ImageSectionLabels，把图片区文案正式收口为 content/actions 两段契约；ImageSection.tsx 与 hooks/useImageSectionViewProps.ts 已改成纯 labels 驱动，不再直接使用 useTranslations('storyboard')。对应文案组装已提升到 PanelCard.tsx，经由 hooks/usePanelCardSectionProps.ts 传入 ImageSection。desktop:build:web 已通过。

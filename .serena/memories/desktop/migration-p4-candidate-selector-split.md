@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 CandidateSelector.tsx。新增 CandidateSelector.types.ts，统一收口候选图选择器及缩略图项的 props 契约；新增 hooks/useCandidateSelectorState.ts，把确认中状态、任务展示态、缩略图尺寸计算、当前选中文案和确认动作从主组件中抽出；新增 CandidateSelectorThumbnail.tsx，承接原图与候选图的单项缩略图渲染、选中态和放大按钮壳层；新增 CandidateSelectorFooter.tsx，承接当前选中项说明、取消/确认按钮区。这样 CandidateSelector.tsx 现在主要负责头部壳、原图/候选图列表分发和底部区装配。desktop:build:web 已通过。

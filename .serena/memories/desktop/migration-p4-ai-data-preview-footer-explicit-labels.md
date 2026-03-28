@@ -1,0 +1,1 @@
+2026-03-23：继续收 AIDataModal 外层桥接。更新 AIDataModalPreviewPane.types.ts、AIDataModalPreviewPane.tsx、AIDataModalFooter.tsx、hooks/useAIDataModalRuntime.ts，把 preview/footer 两段的 t() 透传改成显式 title/copyLabel/cancelLabel/saveLabel 契约，缩小 AIDataModal 外层翻译桥接范围。

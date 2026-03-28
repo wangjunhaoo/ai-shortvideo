@@ -1,0 +1,1 @@
+2026-03-23：继续收 image candidate 模式。新增 hooks/useImageSectionCandidateModeSectionProps.ts，把 ImageSectionCandidateMode.tsx 里的预览图、缩略图区、确认动作区、状态角标四段 props 聚合抽出。同步更新 ImageSectionCandidateMode.types.ts、ImageSectionCandidateThumbnails.tsx、ImageSectionCandidateActions.tsx、ImageSectionCandidateStatusBadge.tsx，全部改成显式条目/文案契约，并去掉了写死的取消候选文案。

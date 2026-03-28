@@ -1,0 +1,1 @@
+2026-03-27：新增 scripts/guards/app-api-next-runtime-zero-guard.mjs，并在 package.json 中接入 check:app-api-next-runtime-zero 与 test:guards。该 guard 约束 src/app/api 与 src/lib/api-errors.ts 不得再出现 next/server、NextRequest、NextResponse、nextUrl 依赖。当前 guard 已通过，说明 app api 薄壳层连 Next 请求/响应类型壳都已退出。

@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardHeader.tsx。新增 StoryboardHeader.types.ts 统一收口头部摘要区和动作区的 props 契约；新增 hooks/useStoryboardHeaderState.ts，把运行中任务展示态解析从主组件中抽出；新增 StoryboardHeaderSummary.tsx，承接标题、分镜统计、运行中角标和并发上限展示；新增 StoryboardHeaderActions.tsx，承接批量生成、下载全部和返回按钮区。这样 StoryboardHeader.tsx 现在主要负责翻译、状态 hook 装配和摘要区/动作区分发。desktop:build:web 已通过。

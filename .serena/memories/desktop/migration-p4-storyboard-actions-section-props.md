@@ -1,0 +1,1 @@
+2026-03-23：继续收 storyboard 动作区。新增 hooks/useStoryboardGroupActionSectionProps.ts，把 StoryboardGroupActions.tsx 里三组按钮的文案、状态和 props 聚合从主组件中抽出。StoryboardGroupActions.tsx 现在主要负责动作区分发，和前面 StoryboardGroup / StoryboardGroupChrome 的 section props 结构保持一致。

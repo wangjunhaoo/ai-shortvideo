@@ -1,16 +1,14 @@
-import type { Job } from 'bullmq'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { safeParseJsonObject } from '@/lib/json-repair'
-import { prisma } from '@/lib/prisma'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { countWords } from '@/lib/word-count'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { getUserModelConfig } from '@/lib/config-service'
 import { createTextMarkerMatcher } from '@/lib/novel-promotion/story-to-script/clip-matching'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
+import { resolveAnalysisModel } from './resolve-analysis-model'
 
 type EpisodeSplit = {
   number?: number
@@ -55,7 +53,10 @@ function toValidBoundaryIndex(value: unknown, textLength: number): number | null
   return idx
 }
 
-export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
+export async function handleEpisodeSplitTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const projectId = job.data.projectId
   const content = typeof payload.content === 'string' ? payload.content : ''
@@ -63,13 +64,7 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
     throw new Error('文本太短，至少需要 100 字')
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectMode(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -77,19 +72,15 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
     throw new Error('Not a novel promotion project')
   }
 
-  const novelProject = await prisma.novelPromotionProject.findFirst({
-    where: { projectId },
-    select: { id: true },
-  })
-  if (!novelProject) {
+  const novelProjectId = await projectRepository.getNovelProjectId(projectId)
+  if (!novelProjectId) {
     throw new Error('Novel promotion data not found')
   }
 
-  const userConfig = await getUserModelConfig(job.data.userId)
-  const analysisModel = userConfig.analysisModel
-  if (!analysisModel) {
-    throw new Error('请先在设置页面配置分析模型')
-  }
+  const analysisModel = await resolveAnalysisModel({
+    userId: job.data.userId,
+    userPreferenceRepository,
+  })
 
   const promptBase = buildPrompt({
     promptId: PROMPT_IDS.NP_EPISODE_SPLIT,
@@ -258,3 +249,7 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
     episodes,
   }
 }
+
+
+
+

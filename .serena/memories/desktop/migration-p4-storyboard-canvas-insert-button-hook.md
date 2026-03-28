@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 useStoryboardCanvasItemRuntime.ts。新增 hooks/useStoryboardCanvasInsertButtonProps.ts，把 StoryboardCanvasItem 的插入按钮 props 组装从 item runtime 中抽成独立 hook；同步复用上游 StoryboardCanvasLabels，保持 CanvasItemRuntime 更聚焦 group runtime 装配。desktop:build:web 已通过。

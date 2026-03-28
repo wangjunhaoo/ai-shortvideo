@@ -1,12 +1,14 @@
-import { Worker, type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
-import { queueConnection } from '@/lib/redis'
+import type { Worker } from 'bullmq'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks, type InternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import type { LLMStreamKind } from '@/lib/llm-observe/types'
-import { QUEUE_NAME } from '@/lib/task/queues'
+import { QUEUE_NAME } from '@/lib/task/queue-contract'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveInsertPanelUserInput } from '@/lib/novel-promotion/insert-panel'
 import {
   executePhase1,
@@ -17,8 +19,8 @@ import {
   type CharacterAsset,
   type LocationAsset,
   type PhotographyRule,
-} from '@/lib/storyboard-phases'
-import { getProjectModelConfig } from '@/lib/config-service'
+} from '@core/storyboard-phases'
+import { getProjectModelConfig } from '@engine/config-service'
 import { reportTaskProgress, reportTaskStreamChunk, withTaskLifecycle } from './shared'
 import { assertTaskActive } from './utils'
 import { handleStoryToScriptTask } from './handlers/story-to-script'
@@ -47,7 +49,7 @@ type WorkerInternalLLMStreamCallbacks = InternalLLMStreamCallbacks & {
   flush: () => Promise<void>
 }
 
-function createWorkerLLMStreamContext(job: Job<TaskJobData>, label = 'worker'): WorkerLLMStreamContext {
+function createWorkerLLMStreamContext(job: WorkerTaskJob, label = 'worker'): WorkerLLMStreamContext {
   return {
     streamRunId: `run:${job.data.taskId}:${label}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
     nextSeqByStepLane: {},
@@ -62,7 +64,7 @@ function nextWorkerStreamSeq(streamContext: WorkerLLMStreamContext, stepId: stri
 }
 
 function createWorkerLLMStreamCallbacks(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   streamContext: WorkerLLMStreamContext,
 ): WorkerInternalLLMStreamCallbacks {
   const maxChunkChars = 128
@@ -303,7 +305,9 @@ async function runStoryboardPhasesForClip(params: {
   return finalPanels
 }
 
-async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
+async function handleRegenerateStoryboardTextTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const storyboardId = typeof payload.storyboardId === 'string' ? payload.storyboardId : job.data.targetId
@@ -311,23 +315,15 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
 
   if (!storyboardId) throw new Error('regenerate_storyboard_text requires storyboardId')
 
-  const storyboard = await prisma.novelPromotionStoryboard.findUnique({
-    where: { id: storyboardId },
-    include: { clip: true, episode: true },
-  })
+  const storyboard = await projectRepository.getStoryboardForTextRegeneration(storyboardId)
   if (!storyboard) throw new Error('Storyboard not found')
-  if (!storyboard.clip) throw new Error('Storyboard clip not found')
+  const clip = storyboard.clip
+  if (!clip) throw new Error('Storyboard clip not found')
 
-  const project = await prisma.project.findUnique({ where: { id: projectId } })
-  if (!project) throw new Error('Project not found')
+  const projectName = await projectRepository.getProjectName(projectId)
+  if (!projectName) throw new Error('Project not found')
 
-  const novelPromotionData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: { include: { appearances: { orderBy: { appearanceIndex: 'asc' } } } },
-      locations: { include: { images: { orderBy: { imageIndex: 'asc' } } } },
-    },
-  })
+  const novelPromotionData = await projectRepository.getStoryboardAssets(projectId)
   if (!novelPromotionData) throw new Error('Novel promotion data not found')
   if (!novelPromotionData.analysisModel) throw new Error('Analysis model not configured')
   const normalizedNovelPromotionData = {
@@ -343,10 +339,10 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
     regenerateCallbacks,
     async () =>
       await runStoryboardPhasesForClip({
-        clip: storyboard.clip,
+        clip,
         novelPromotionData: normalizedNovelPromotionData,
         projectId,
-        projectName: project.name,
+        projectName,
         userId,
         locale: job.data.locale,
       }),
@@ -356,40 +352,7 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 85, { stage: 'regenerate_storyboard_persist', storyboardId })
 
   await assertTaskActive(job, 'regenerate_storyboard_transaction')
-  await prisma.$transaction(async (tx) => {
-    await tx.novelPromotionPanel.deleteMany({ where: { storyboardId } })
-    await tx.novelPromotionStoryboard.update({
-      where: { id: storyboardId },
-      data: { panelCount: finalPanels.length, updatedAt: new Date() },
-    })
-
-    for (let i = 0; i < finalPanels.length; i++) {
-      const panel = finalPanels[i]
-      const srtRange = Array.isArray(panel.srt_range) ? panel.srt_range : []
-      const srtStart = typeof srtRange[0] === 'number' ? srtRange[0] : null
-      const srtEnd = typeof srtRange[1] === 'number' ? srtRange[1] : null
-      await tx.novelPromotionPanel.create({
-        data: {
-          storyboardId,
-          panelIndex: i,
-          panelNumber: panel.panel_number || i + 1,
-          shotType: panel.shot_type || null,
-          cameraMove: panel.camera_move || null,
-          description: panel.description || null,
-          location: panel.location || null,
-          characters: panel.characters ? JSON.stringify(panel.characters) : null,
-          srtStart,
-          srtEnd,
-          duration: panel.duration || null,
-          videoPrompt: panel.video_prompt || null,
-          sceneType: typeof panel.scene_type === 'string' ? panel.scene_type : null,
-          srtSegment: panel.source_text || null,
-          photographyRules: panel.photographyPlan ? JSON.stringify(panel.photographyPlan) : null,
-          actingNotes: panel.actingNotes ? JSON.stringify(panel.actingNotes) : null,
-        },
-      })
-    }
-  }, { timeout: 30000 })
+  await projectRepository.replaceStoryboardPanels(storyboardId, finalPanels)
 
   return {
     storyboardId,
@@ -397,7 +360,9 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
   }
 }
 
-async function handleInsertPanelTask(job: Job<TaskJobData>) {
+async function handleInsertPanelTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const storyboardId = typeof payload.storyboardId === 'string' ? payload.storyboardId : job.data.targetId
   const insertAfterPanelId = typeof payload.insertAfterPanelId === 'string' ? payload.insertAfterPanelId : ''
@@ -407,13 +372,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
     throw new Error('insert_panel requires storyboardId/insertAfterPanelId')
   }
 
-  const storyboard = await prisma.novelPromotionStoryboard.findUnique({
-    where: { id: storyboardId },
-    include: {
-      clip: true,
-      panels: { orderBy: { panelIndex: 'asc' } },
-    },
-  })
+  const storyboard = await projectRepository.getStoryboardForInsertPanel(storyboardId)
   if (!storyboard) throw new Error('Storyboard not found')
 
   const prevPanel = storyboard.panels.find((panel) => panel.id === insertAfterPanelId)
@@ -424,13 +383,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
   const analysisModel = projectModels.analysisModel
   if (!analysisModel) throw new Error('Analysis model not configured')
 
-  const projectData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId: job.data.projectId },
-    include: {
-      characters: { include: { appearances: { orderBy: { appearanceIndex: 'asc' } } } },
-      locations: { include: { images: { orderBy: { imageIndex: 'asc' } } } },
-    },
-  })
+  const projectData = await projectRepository.getStoryboardAssets(job.data.projectId)
   if (!projectData) throw new Error('Novel promotion data not found')
 
   const prevPanelJson = JSON.stringify(
@@ -550,50 +503,15 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 80, { stage: 'insert_panel_persist' })
 
   await assertTaskActive(job, 'insert_panel_transaction')
-  const newPanel = await prisma.$transaction(async (tx) => {
-    // Two-phase reindexing to avoid unique constraint collision on (storyboardId, panelIndex)
-    // Phase A: shift affected panels to negative indices to clear the positive namespace
-    const affectedPanels = await tx.novelPromotionPanel.findMany({
-      where: { storyboardId, panelIndex: { gt: prevPanel.panelIndex } },
-      select: { id: true, panelIndex: true },
-      orderBy: { panelIndex: 'asc' },
-    })
-    for (const p of affectedPanels) {
-      await tx.novelPromotionPanel.update({
-        where: { id: p.id },
-        data: { panelIndex: -(p.panelIndex + 1) },
-      })
-    }
-    // Phase B: set affected panels to their final positive indices
-    for (const p of affectedPanels) {
-      await tx.novelPromotionPanel.update({
-        where: { id: p.id },
-        data: { panelIndex: p.panelIndex + 1 },
-      })
-    }
-
-    const created = await tx.novelPromotionPanel.create({
-      data: {
-        storyboardId,
-        panelIndex: prevPanel.panelIndex + 1,
-        panelNumber: prevPanel.panelIndex + 2,
-        shotType: generatedShotType || prevPanel.shotType,
-        cameraMove: generatedCameraMove || prevPanel.cameraMove,
-        description: generatedDescription || userInput,
-        videoPrompt: generatedVideoPrompt || generatedDescription || userInput,
-        location: generatedLocation || prevPanel.location,
-        characters: generatedPanel.characters ? JSON.stringify(generatedPanel.characters) : prevPanel.characters,
-        srtSegment: generatedSrtSegment || prevPanel.srtSegment,
-        duration: generatedDuration,
-      },
-    })
-
-    await tx.novelPromotionStoryboard.update({
-      where: { id: storyboardId },
-      data: { panelCount: { increment: 1 }, updatedAt: new Date() },
-    })
-
-    return created
+  const newPanel = await projectRepository.insertPanelAfter(storyboardId, insertAfterPanelId, {
+    shotType: generatedShotType || prevPanel.shotType,
+    cameraMove: generatedCameraMove || prevPanel.cameraMove,
+    description: generatedDescription || userInput,
+    videoPrompt: generatedVideoPrompt || generatedDescription || userInput,
+    location: generatedLocation || prevPanel.location,
+    characters: generatedPanel.characters ? JSON.stringify(generatedPanel.characters) : prevPanel.characters,
+    srtSegment: generatedSrtSegment || prevPanel.srtSegment,
+    duration: generatedDuration,
   })
 
   return {
@@ -603,7 +521,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
   }
 }
 
-async function processTextTask(job: Job<TaskJobData>) {
+export async function processTextTask(job: WorkerTaskJob) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
@@ -651,13 +569,26 @@ async function processTextTask(job: Job<TaskJobData>) {
   }
 }
 
-export function createTextWorker() {
+export async function runTextTaskJob(job: WorkerTaskJob) {
+  return await withTaskLifecycle(job, processTextTask)
+}
+
+export async function createTextWorker(): Promise<Worker<TaskJobData>> {
+  const [{ Worker }, { queueConnection }] = await Promise.all([
+    import('bullmq'),
+    import('../redis'),
+  ])
+
   return new Worker<TaskJobData>(
     QUEUE_NAME.TEXT,
-    async (job) => await withTaskLifecycle(job, processTextTask),
+    async (job) => await runTextTaskJob(job),
     {
       connection: queueConnection,
       concurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY_TEXT || '10', 10) || 10,
     },
   )
 }
+
+
+
+

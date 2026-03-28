@@ -1,9 +1,4 @@
 'use client'
 
-import PromptsStageLayout, { type PromptsStageShellProps } from './PromptsStageLayout'
-
-export type { PromptsStageShellProps }
-
-export default function PromptsStageShell(props: PromptsStageShellProps) {
-  return <PromptsStageLayout {...props} />
-}
+export * from '@renderer/modules/project-detail/novel-promotion/components/prompts-stage/PromptsStageShell'
+export { default } from '@renderer/modules/project-detail/novel-promotion/components/prompts-stage/PromptsStageShell'

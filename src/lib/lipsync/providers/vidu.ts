@@ -18,7 +18,7 @@ function toAbsoluteHttpUrl(rawUrl: string): string {
     return normalized
   }
   if (normalized.startsWith('/')) {
-    const baseUrl = (process.env.NEXTAUTH_URL || 'http://localhost:3000').trim()
+    const baseUrl = (process.env.APP_BASE_URL || 'http://localhost:3000').trim()
     const trimmedBase = baseUrl.replace(/\/+$/, '')
     return `${trimmedBase}${normalized}`
   }

@@ -1,6 +1,5 @@
 import { createScopedLogger } from '@/lib/logging/core'
 import { withLogContext } from '@/lib/logging/context'
-import { NextRequest, NextResponse } from 'next/server'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { normalizeAnyError } from '@/lib/errors/normalize'
 import { publishTaskEvent, publishTaskStreamEvent } from '@/lib/task/publisher'
@@ -16,9 +15,9 @@ type RouteParamValue = string | string[] | undefined
 type RouteParams = Record<string, RouteParamValue>
 
 type ApiHandler<TParams extends RouteParams = RouteParams> = (
-  req: NextRequest,
+  req: Request,
   ctx: { params: Promise<TParams> }
-) => Promise<Response | NextResponse>
+) => Promise<Response>
 
 const REQUEST_ID_SYMBOL = Symbol.for('waoowaoo.request_id')
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -36,6 +35,10 @@ const GENERATION_OPERATION_PATTERNS = [
   /\/modify-(?:asset|storyboard)-image(?:\/|$)/,
   /\/asset-hub\/(?:generate-image|modify-image|voice-design)(?:\/|$)/,
 ]
+
+function getRequestUrl(req: Request): URL {
+  return new URL(req.url)
+}
 
 function isGenerationOperationPath(pathname: string): boolean {
   const normalizedPath = pathname.toLowerCase()
@@ -62,7 +65,7 @@ function parseTrueFlag(value: string | null): boolean {
   return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on'
 }
 
-function buildInternalLLMStreamCallbacks(req: NextRequest): InternalLLMStreamCallbacks | null {
+function buildInternalLLMStreamCallbacks(req: Request): InternalLLMStreamCallbacks | null {
   if (!parseTrueFlag(req.headers.get('x-internal-task-stream'))) return null
   const expectedToken = process.env.INTERNAL_TASK_TOKEN || ''
   const token = req.headers.get('x-internal-task-token') || ''
@@ -81,7 +84,7 @@ function buildInternalLLMStreamCallbacks(req: NextRequest): InternalLLMStreamCal
   const episodeId = req.headers.get('x-internal-episode-id') || null
   if (!taskId || !projectId || !userId) return null
 
-  const route = req.nextUrl.pathname
+  const route = getRequestUrl(req).pathname
   const streamRunId = `run:${taskId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
   const flowMeta = getTaskFlowMeta(taskType)
   const streamSeqByStepLane = new Map<string, number>()
@@ -326,19 +329,19 @@ function buildInternalLLMStreamCallbacks(req: NextRequest): InternalLLMStreamCal
   }
 }
 
-function setRequestId(req: NextRequest, requestId: string) {
-  ;(req as NextRequest & { [REQUEST_ID_SYMBOL]?: string })[REQUEST_ID_SYMBOL] = requestId
+function setRequestId(req: Request, requestId: string) {
+  ;(req as Request & { [REQUEST_ID_SYMBOL]?: string })[REQUEST_ID_SYMBOL] = requestId
 }
 
-export function getRequestId(req: NextRequest): string | undefined {
-  const fromSymbol = (req as NextRequest & { [REQUEST_ID_SYMBOL]?: string })[REQUEST_ID_SYMBOL]
+export function getRequestId(req: Request): string | undefined {
+  const fromSymbol = (req as Request & { [REQUEST_ID_SYMBOL]?: string })[REQUEST_ID_SYMBOL]
   if (typeof fromSymbol === 'string' && fromSymbol) return fromSymbol
   const fromHeader = req.headers.get('x-request-id')
   if (typeof fromHeader === 'string' && fromHeader) return fromHeader
   return undefined
 }
 
-export function getIdempotencyKey(req: NextRequest): string | undefined {
+export function getIdempotencyKey(req: Request): string | undefined {
   const key =
     req.headers.get('idempotency-key')
     || req.headers.get('x-idempotency-key')
@@ -348,7 +351,7 @@ export function getIdempotencyKey(req: NextRequest): string | undefined {
 }
 
 async function extractRouteContext<TParams extends RouteParams>(
-  req: NextRequest,
+  req: Request,
   ctx: { params: Promise<TParams> },
 ) {
   let params: Record<string, unknown> = {}
@@ -356,13 +359,14 @@ async function extractRouteContext<TParams extends RouteParams>(
     params = (await ctx.params) || {}
   } catch {}
 
+  const requestUrl = getRequestUrl(req)
   const projectId =
     (typeof params.projectId === 'string' && params.projectId) ||
-    req.nextUrl.searchParams.get('projectId') ||
+    requestUrl.searchParams.get('projectId') ||
     undefined
   const taskId =
     (typeof params.taskId === 'string' && params.taskId) ||
-    req.nextUrl.searchParams.get('taskId') ||
+    requestUrl.searchParams.get('taskId') ||
     undefined
 
   return { projectId, taskId }
@@ -442,6 +446,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
     const requestId = getRequestId(req) || createRequestId()
     setRequestId(req, requestId)
     const routeContext = await extractRouteContext(req, ctx)
+    const requestUrl = getRequestUrl(req)
     const logger = createScopedLogger({
       module: 'api',
       requestId,
@@ -455,7 +460,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
         projectId: routeContext.projectId,
         taskId: routeContext.taskId,
         module: 'api',
-        action: `${req.method} ${req.nextUrl.pathname}`,
+        action: `${req.method} ${requestUrl.pathname}`,
       },
       async () => {
         logger.debug({
@@ -463,7 +468,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
           message: 'api request start',
           details: {
             method: req.method,
-            path: req.nextUrl.pathname,
+            path: requestUrl.pathname,
           },
         })
         const streamCallbacks = buildInternalLLMStreamCallbacks(req)
@@ -479,11 +484,11 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
             durationMs: Date.now() - startedAt,
             details: {
               method: req.method,
-              path: req.nextUrl.pathname,
+              path: requestUrl.pathname,
               status: response.status,
             },
           })
-          if (shouldAuditUserOperation(req.method, response.status, req.nextUrl.pathname)) {
+          if (shouldAuditUserOperation(req.method, response.status, requestUrl.pathname)) {
             logger.event({
               level: 'INFO',
               audit: true,
@@ -493,7 +498,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
               durationMs: Date.now() - startedAt,
               details: {
                 method: req.method,
-                path: req.nextUrl.pathname,
+                path: requestUrl.pathname,
                 status: response.status,
               },
             })
@@ -512,7 +517,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
             durationMs: Date.now() - startedAt,
             details: {
               method: req.method,
-              path: req.nextUrl.pathname,
+              path: requestUrl.pathname,
               errorType,
             },
             error:
@@ -530,7 +535,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
 
           const rawDetails = (apiError.details || {}) as Record<string, unknown>
 
-          const response = NextResponse.json(
+          const response = Response.json(
             {
               success: false,
               requestId,

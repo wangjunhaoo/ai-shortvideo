@@ -1,16 +1,16 @@
-import type { Job } from 'bullmq'
-import { getUserModelConfig } from '@/lib/config-service'
+import type { WorkerTaskJob } from '@engine/runtime-context'
+import { getUserModelConfig } from '@engine/config-service'
 import { aiDesign } from '@/lib/asset-utils'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
+import { TASK_TYPE } from '@/lib/task/types'
 
 function resolveUserInstruction(payload: Record<string, unknown>) {
   const value = payload.userInstruction
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export async function handleAssetHubAIDesignTask(job: Job<TaskJobData>) {
+export async function handleAssetHubAIDesignTask(job: WorkerTaskJob) {
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const userInstruction = resolveUserInstruction(payload)
   if (!userInstruction) {
@@ -70,3 +70,7 @@ export async function handleAssetHubAIDesignTask(job: Job<TaskJobData>) {
     prompt: result.prompt,
   }
 }
+
+
+
+

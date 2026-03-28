@@ -47,7 +47,7 @@ COPY --from=builder /app/standards ./standards
 # 国际化 + 配置文件
 COPY --from=builder /app/messages ./messages
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/next.config.mjs ./next.config.mjs
 COPY --from=builder /app/middleware.ts ./middleware.ts
 COPY --from=builder /app/postcss.config.mjs ./postcss.config.mjs
 

@@ -14,11 +14,11 @@ import {
   getFilteredAppearanceList,
   getFilteredFullDescription,
   getFilteredLocationsDescription,
-} from '@/lib/storyboard-phases'
+} from '@core/storyboard-phases'
 import {
   DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   normalizeWorkflowConcurrencyValue,
-} from '@/lib/workflow-concurrency'
+} from '@core/workflow-concurrency'
 
 type JsonRecord = Record<string, unknown>
 const orchestratorLogger = createScopedLogger({ module: 'worker.orchestrator.script_to_storyboard' })
@@ -494,3 +494,5 @@ export async function runScriptToStoryboardOrchestrator(
     },
   }
 }
+
+

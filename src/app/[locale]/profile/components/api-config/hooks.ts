@@ -16,13 +16,13 @@ import {
     type PricingDisplayItem,
     type PricingDisplayMap,
 } from './types'
-import type { CapabilitySelections, CapabilityValue } from '@/lib/model-config-contract'
+import type { CapabilitySelections, CapabilityValue } from '@core/model-config-contract'
 import {
     DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
     DEFAULT_IMAGE_WORKFLOW_CONCURRENCY,
     DEFAULT_VIDEO_WORKFLOW_CONCURRENCY,
     normalizeWorkflowConcurrencyValue,
-} from '@/lib/workflow-concurrency'
+} from '@core/workflow-concurrency'
 
 interface DefaultModels {
     analysisModel?: string
@@ -792,3 +792,5 @@ export function useProviders(): UseProvidersReturn {
         getModelsByType
     }
 }
+
+

@@ -1,12 +1,12 @@
-import type { Job } from 'bullmq'
+import type { WorkerTaskJob } from '@engine/runtime-context'
 import { INTERNAL_TASK_API_BASE_URL, INTERNAL_TASK_TOKEN } from '@/lib/llm-observe/config'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { type TaskJobData, type TaskType } from '@/lib/task/types'
+import { type TaskType } from '@/lib/task/types'
 
-const LLM_PROXY_ROUTES: Record<string, (job: Job<TaskJobData>) => string> = {}
+const LLM_PROXY_ROUTES: Record<string, (job: WorkerTaskJob) => string> = {}
 
-function getRouteByTaskType(type: TaskType, job: Job<TaskJobData>) {
+function getRouteByTaskType(type: TaskType, job: WorkerTaskJob) {
   const resolver = LLM_PROXY_ROUTES[type]
   if (!resolver) {
     throw new Error(`Unsupported llm proxy task type: ${type}`)
@@ -36,7 +36,7 @@ function toErrorMessage(status: number, body: unknown) {
   return `Internal route failed with status ${status}`
 }
 
-export async function handleLLMProxyTask(job: Job<TaskJobData>) {
+export async function handleLLMProxyTask(job: WorkerTaskJob) {
   const route = getRouteByTaskType(job.data.type, job)
   const payload = {
     ...toObject(job.data.payload),
@@ -116,3 +116,6 @@ export async function handleLLMProxyTask(job: Job<TaskJobData>) {
 export function isLLMProxyTaskType(type: TaskType) {
   return Object.prototype.hasOwnProperty.call(LLM_PROXY_ROUTES, type)
 }
+
+
+

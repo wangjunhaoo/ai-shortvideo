@@ -1,14 +1,14 @@
-import { Worker, type Job } from 'bullmq'
-import { queueConnection } from '@/lib/redis'
+import type { Worker } from 'bullmq'
+import type { WorkerTaskJob } from '@engine/runtime-context'
 import { generateVoiceLine } from '@/lib/voice/generate-voice-line'
-import { QUEUE_NAME } from '@/lib/task/queues'
+import { QUEUE_NAME } from '@/lib/task/queue-contract'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress, withTaskLifecycle } from './shared'
 import { handleVoiceDesignTask } from './handlers/voice-design'
 
 type AnyObj = Record<string, unknown>
 
-async function handleVoiceLineTask(job: Job<TaskJobData>) {
+async function handleVoiceLineTask(job: WorkerTaskJob) {
   const payload = (job.data.payload || {}) as AnyObj
   const lineId = typeof payload.lineId === 'string' ? payload.lineId : job.data.targetId
   const episodeId = typeof payload.episodeId === 'string' ? payload.episodeId : job.data.episodeId
@@ -37,7 +37,7 @@ async function handleVoiceLineTask(job: Job<TaskJobData>) {
   return generated
 }
 
-async function processVoiceTask(job: Job<TaskJobData>) {
+export async function processVoiceTask(job: WorkerTaskJob) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
@@ -51,13 +51,24 @@ async function processVoiceTask(job: Job<TaskJobData>) {
   }
 }
 
-export function createVoiceWorker() {
+export async function runVoiceTaskJob(job: WorkerTaskJob) {
+  return await withTaskLifecycle(job, processVoiceTask)
+}
+
+export async function createVoiceWorker(): Promise<Worker<TaskJobData>> {
+  const [{ Worker }, { queueConnection }] = await Promise.all([
+    import('bullmq'),
+    import('../redis'),
+  ])
+
   return new Worker<TaskJobData>(
     QUEUE_NAME.VOICE,
-    async (job) => await withTaskLifecycle(job, processVoiceTask),
+    async (job) => await runVoiceTaskJob(job),
     {
       connection: queueConnection,
       concurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY_VOICE || '10', 10) || 10,
     },
   )
 }
+
+

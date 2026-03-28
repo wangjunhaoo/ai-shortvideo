@@ -1,11 +1,9 @@
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 import {
   CHUNK_SIZE,
   chunkContent,
@@ -19,15 +17,12 @@ import { buildAnalyzeGlobalPrompts, loadAnalyzeGlobalPromptTemplates } from './a
 import { createAnalyzeGlobalStats, persistAnalyzeGlobalChunk } from './analyze-global-persist'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
-export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
+export async function handleAnalyzeGlobalTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const projectId = job.data.projectId
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectMode(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -35,21 +30,7 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
     throw new Error('Not a novel promotion project')
   }
 
-  const novelData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-      locations: true,
-      episodes: {
-        orderBy: { episodeNumber: 'asc' },
-        select: {
-          id: true,
-          name: true,
-          novelText: true,
-        },
-      },
-    },
-  })
+  const novelData = await projectRepository.getNovelProjectForGlobalAnalysis(projectId)
   if (!novelData) {
     throw new Error('Novel promotion data not found')
   }
@@ -57,6 +38,7 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
   const analysisModel = await resolveAnalysisModel({
     userId: job.data.userId,
     projectAnalysisModel: novelData.analysisModel,
+    userPreferenceRepository,
   })
 
   let allContent = ''
@@ -163,6 +145,7 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
       const locationsData = safeParseLocationsResponse(locationResponse)
 
       await persistAnalyzeGlobalChunk({
+        projectRepository,
         projectInternalId: novelData.id,
         charactersData,
         locationsData,
@@ -199,3 +182,6 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
     },
   }
 }
+
+
+

@@ -1,0 +1,1 @@
+2026-03-24：继续收 CandidateSelector 的翻译边界。CandidateSelector.types.ts 新增 CandidateSelectorLabels；CandidateSelector.tsx 成为标题、副标题、原图标签、候选图标签、空态和底部按钮文案的统一边界；hooks/useCandidateSelectorRuntime.ts 已移除 useTranslations('storyboard')，改成只消费显式 labels。desktop:build:web 已通过。

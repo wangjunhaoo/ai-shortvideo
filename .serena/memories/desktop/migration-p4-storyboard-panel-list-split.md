@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardPanelList.tsx。新增 StoryboardPanelList.types.ts，统一收口列表级与单项级 props、以及面板视图模型结构；新增 hooks/useStoryboardPanelListItems.ts，把列表项 imageUrl/globalPanelNumber、修改中/删除中/保存中状态、失败信息、编辑数据和候选图数据的计算从主组件中抽出；新增 StoryboardPanelListItem.tsx，承接单个面板项的 wrapper、z-index 计算和 PanelCard 桥接。这样 StoryboardPanelList.tsx 现在主要负责网格壳、纵横版列数选择和面板项分发。desktop:build:web 已通过。

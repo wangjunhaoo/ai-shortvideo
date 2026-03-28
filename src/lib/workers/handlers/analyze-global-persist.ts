@@ -1,5 +1,5 @@
-import { prisma } from '@/lib/prisma'
 import { removeLocationPromptSuffix } from '@/lib/constants'
+import type { ProjectRepository } from '@engine/repositories/project-repository'
 import {
   isInvalidLocation,
   readText,
@@ -32,6 +32,7 @@ export function createAnalyzeGlobalStats(totalChunks: number): AnalyzeGlobalStat
 }
 
 export async function persistAnalyzeGlobalChunk(params: {
+  projectRepository: ProjectRepository
   projectInternalId: string
   charactersData: AnalyzeGlobalCharactersData
   locationsData: AnalyzeGlobalLocationsData
@@ -71,18 +72,13 @@ export async function persistAnalyzeGlobalChunk(params: {
         age_range: char.age_range,
       }
 
-      const created = await prisma.novelPromotionCharacter.create({
-        data: {
-          novelPromotionProjectId: params.projectInternalId,
-          name,
-          aliases: JSON.stringify(aliases),
-          introduction: readText(char.introduction),
-          profileData: JSON.stringify(profileData),
-          profileConfirmed: false,
-        },
-        select: {
-          id: true,
-        },
+      const created = await params.projectRepository.createNovelCharacter({
+        novelPromotionProjectId: params.projectInternalId,
+        name,
+        aliases,
+        introduction: readText(char.introduction),
+        profileData,
+        profileConfirmed: false,
       })
 
       params.existingCharacters.push({
@@ -106,6 +102,7 @@ export async function persistAnalyzeGlobalChunk(params: {
 
     try {
       const updateData: Record<string, unknown> = {}
+      let mergedAliases: string[] | null = null
       const updatedIntroduction = readText(update.updated_introduction).trim()
       if (updatedIntroduction) {
         updateData.introduction = updatedIntroduction
@@ -118,17 +115,18 @@ export async function persistAnalyzeGlobalChunk(params: {
           (item) => !existing.aliases.some((alias) => alias.toLowerCase() === item.toLowerCase()),
         )
         if (newAliases.length > 0) {
-          const merged = [...existing.aliases, ...newAliases]
-          updateData.aliases = JSON.stringify(merged)
-          existing.aliases = merged
+          mergedAliases = [...existing.aliases, ...newAliases]
+          updateData.aliases = true
+          existing.aliases = mergedAliases
           params.existingCharacterNames.push(...newAliases)
         }
       }
 
       if (Object.keys(updateData).length > 0) {
-        await prisma.novelPromotionCharacter.update({
-          where: { id: existing.id },
-          data: updateData,
+        await params.projectRepository.updateNovelCharacter({
+          id: existing.id,
+          ...(typeof updateData.introduction === 'string' ? { introduction: updateData.introduction } : {}),
+          ...(mergedAliases ? { aliases: mergedAliases } : {}),
         })
         params.stats.updatedCharacters += 1
       }
@@ -159,24 +157,17 @@ export async function persistAnalyzeGlobalChunk(params: {
       const descriptions = descriptionsRaw.map((item) => readText(item)).filter(Boolean)
       const cleanDescriptions = descriptions.map((item) => removeLocationPromptSuffix(item))
 
-      const created = await prisma.novelPromotionLocation.create({
-        data: {
-          novelPromotionProjectId: params.projectInternalId,
-          name,
-          summary: summary || null,
-        },
-        select: {
-          id: true,
-        },
+      const created = await params.projectRepository.createNovelLocation({
+        novelPromotionProjectId: params.projectInternalId,
+        name,
+        summary: summary || null,
       })
 
       for (let j = 0; j < cleanDescriptions.length; j += 1) {
-        await prisma.locationImage.create({
-          data: {
-            locationId: created.id,
-            imageIndex: j,
-            description: cleanDescriptions[j],
-          },
+        await params.projectRepository.createLocationImage({
+          locationId: created.id,
+          imageIndex: j,
+          description: cleanDescriptions[j],
         })
       }
 
@@ -188,3 +179,4 @@ export async function persistAnalyzeGlobalChunk(params: {
     }
   }
 }
+

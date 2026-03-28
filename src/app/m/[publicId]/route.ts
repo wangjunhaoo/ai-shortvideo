@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { getSignedUrl, toFetchableUrl } from '@/lib/storage'
 import { getMediaObjectByPublicId } from '@/lib/media/service'
 
@@ -10,17 +9,17 @@ function buildEtag(media: { sha256?: string | null; id: string; updatedAt?: stri
 }
 
 export async function GET(
-  request: NextRequest,
+  request: Request,
   context: { params: Promise<{ publicId: string }> },
 ) {
   const { publicId } = await context.params
   const media = await getMediaObjectByPublicId(publicId)
 
   if (!media) {
-    return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+    return Response.json({ error: 'Media not found' }, { status: 404 })
   }
   if (!media.storageKey) {
-    return NextResponse.json({ error: 'Media storage key missing' }, { status: 500 })
+    return Response.json({ error: 'Media storage key missing' }, { status: 500 })
   }
 
   const etag = buildEtag({
@@ -31,7 +30,7 @@ export async function GET(
 
   const ifNoneMatch = request.headers.get('if-none-match')
   if (ifNoneMatch && ifNoneMatch === etag) {
-    return new NextResponse(null, {
+    return new Response(null, {
       status: 304,
       headers: {
         ETag: etag,
@@ -49,7 +48,7 @@ export async function GET(
 
   if (!upstream.ok) {
     const status = upstream.status === 404 ? 404 : 502
-    return NextResponse.json({ error: 'Failed to fetch media' }, { status })
+    return Response.json({ error: 'Failed to fetch media' }, { status })
   }
 
   const contentType = media.mimeType || upstream.headers.get('content-type') || 'application/octet-stream'
@@ -72,13 +71,14 @@ export async function GET(
 }
 
 export async function HEAD(
-  request: NextRequest,
+  request: Request,
   context: { params: Promise<{ publicId: string }> },
 ) {
+  void request
   const { publicId } = await context.params
   const media = await getMediaObjectByPublicId(publicId)
   if (!media) {
-    return NextResponse.json({ error: 'Media not found' }, { status: 404 })
+    return Response.json({ error: 'Media not found' }, { status: 404 })
   }
 
   const etag = buildEtag({

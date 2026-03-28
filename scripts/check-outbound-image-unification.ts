@@ -74,9 +74,9 @@ const mustIncludeRules: Rule[] = [
     message: 'modify-storyboard-image route must sanitize image inputs',
   },
   {
-    file: 'src/app/api/asset-hub/modify-image/route.ts',
+    file: 'packages/engine/services/asset-hub-task-service.ts',
     pattern: /sanitizeImageInputsForTaskPayload/,
-    message: 'asset-hub modify-image route must sanitize image inputs',
+    message: 'asset-hub modify-image task submission must sanitize image inputs',
   },
   {
     file: 'src/components/ui/ImagePreviewModal.tsx',
@@ -89,13 +89,13 @@ const mustIncludeRules: Rule[] = [
     message: 'Video stage runtime must wire preview callback to VideoPanelCard',
   },
   {
-    file: 'src/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video/panel-card/types.ts',
+    file: 'packages/renderer/modules/project-detail/novel-promotion/components/video/panel-card/types.ts',
     pattern: /onPreviewImage\?:\s*\(imageUrl:\s*string\)\s*=>\s*void/,
     message: 'VideoPanelCard runtime props must expose onPreviewImage',
   },
   {
-    file: 'src/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video/panel-card/VideoPanelCardHeader.tsx',
-    pattern: /className="absolute left-1\/2 top-1\/2 z-10 h-16 w-16 -translate-x-1\/2 -translate-y-1\/2 rounded-full"/,
+    file: 'packages/renderer/modules/project-detail/novel-promotion/components/video/panel-card/VideoPanelCardHeader.tsx',
+    pattern: /absolute inset-0 flex items-center justify-center[\s\S]*w-16 h-16 bg-\[var\(--glass-bg-surface-strong\)\] rounded-full flex items-center justify-center/,
     message: 'VideoPanelCard play trigger must be centered small button (preview/play separation)',
   },
 ]

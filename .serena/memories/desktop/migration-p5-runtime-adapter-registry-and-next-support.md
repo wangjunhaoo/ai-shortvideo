@@ -1,0 +1,1 @@
+2026-03-27：新增 desktop/runtime/next-http-runtime-support.cjs 与 desktop/runtime/runtime-adapter-registry.cjs。desktop/main.cjs 已不再直接 import next-runtime-adapter.cjs，而是通过 registry 解析当前 runtime adapter；next-runtime-adapter 仅组合 next-http-runtime-support + prisma-runtime-support。新增 desktop-runtime-adapter-registry-guard.mjs，防止主入口重新直连具体 adapter。

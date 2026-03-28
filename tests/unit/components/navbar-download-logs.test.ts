@@ -7,10 +7,10 @@ import { NextIntlClientProvider } from 'next-intl'
 import type { AbstractIntlMessages } from 'next-intl'
 import Navbar from '@/components/Navbar'
 
-const useSessionMock = vi.fn()
+const useRendererSessionMock = vi.fn()
 
-vi.mock('next-auth/react', () => ({
-  useSession: () => useSessionMock(),
+vi.mock('@renderer/auth/client', () => ({
+  useRendererSession: () => useRendererSessionMock(),
 }))
 
 vi.mock('next/image', () => ({
@@ -83,12 +83,12 @@ const renderWithIntl = (node: ReactElement) => {
 
 describe('Navbar download logs entry', () => {
   beforeEach(() => {
-    useSessionMock.mockReset()
+    useRendererSessionMock.mockReset()
   })
 
   it('renders the download logs entry on the far-right action group for signed-in users', () => {
     Reflect.set(globalThis, 'React', React)
-    useSessionMock.mockReturnValue({
+    useRendererSessionMock.mockReturnValue({
       data: { user: { name: 'Earth' } },
       status: 'authenticated',
     })
@@ -102,7 +102,7 @@ describe('Navbar download logs entry', () => {
 
   it('does not render the download logs entry for signed-out users', () => {
     Reflect.set(globalThis, 'React', React)
-    useSessionMock.mockReturnValue({
+    useRendererSessionMock.mockReturnValue({
       data: null,
       status: 'unauthenticated',
     })

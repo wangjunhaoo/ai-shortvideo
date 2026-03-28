@@ -1,17 +1,7 @@
-import { UnrecoverableError, type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
-import { createScopedLogger } from '@/lib/logging/core'
+import { UnrecoverableError } from 'bullmq'
+import { createTaskExecutionContext, createTaskExecutionLogger, type WorkerTaskHandler, type WorkerTaskJob } from '@engine/runtime-context'
 import type { LLMStreamChunk } from '@/lib/llm-observe/types'
 import { TaskTerminatedError } from '@/lib/task/errors'
-import {
-  rollbackTaskBillingForTask,
-  touchTaskHeartbeat,
-  tryMarkTaskCompleted,
-  tryMarkTaskFailed,
-  tryMarkTaskProcessing,
-  tryUpdateTaskProgress,
-  updateTaskBillingInfo,
-} from '@/lib/task/service'
 import { publishTaskEvent, publishTaskStreamEvent } from '@/lib/task/publisher'
 import { TASK_EVENT_TYPE, TASK_SSE_EVENT_TYPE, TASK_TYPE, type SSEEvent, type TaskBillingInfo, type TaskJobData } from '@/lib/task/types'
 import { buildTaskProgressMessage, getTaskStageLabel } from '@/lib/task/progress-message'
@@ -86,13 +76,12 @@ function resolveRunId(jobData: TaskJobData): string | null {
 }
 
 function buildWorkerLogger(data: TaskJobData, queueName: string) {
-  return createScopedLogger({
-    module: `worker.${queueName}`,
-    requestId: data.trace?.requestId || undefined,
-    taskId: data.taskId,
-    projectId: data.projectId,
-    userId: data.userId,
-  })
+  return createTaskExecutionLogger({
+    data,
+    queueName,
+    attemptsMade: 0,
+    opts: {},
+  }, 'worker.lifecycle', `worker.${queueName}`)
 }
 
 const RUN_STREAM_REPLAY_PERSIST_TYPES = new Set<string>([
@@ -225,19 +214,19 @@ async function publishStreamEvent(params: {
   })
 }
 
-function resolveQueueAttempts(job: Job<TaskJobData>): number {
+function resolveQueueAttempts(job: WorkerTaskJob): number {
   const attempts = (job.opts?.attempts ?? 1)
   const value = typeof attempts === 'number' && Number.isFinite(attempts) ? Math.floor(attempts) : 1
   return Math.max(1, value)
 }
 
-function resolveAttemptsMade(job: Job<TaskJobData>): number {
+function resolveAttemptsMade(job: WorkerTaskJob): number {
   const attemptsMade = job.attemptsMade
   const value = typeof attemptsMade === 'number' && Number.isFinite(attemptsMade) ? Math.floor(attemptsMade) : 0
   return Math.max(0, value)
 }
 
-function resolveNextBackoffMs(job: Job<TaskJobData>, failedAttempt: number): number | null {
+function resolveNextBackoffMs(job: WorkerTaskJob, failedAttempt: number): number | null {
   const backoff = job.opts?.backoff
   if (typeof backoff === 'number' && Number.isFinite(backoff) && backoff > 0) {
     return Math.floor(backoff)
@@ -259,7 +248,7 @@ function resolveNextBackoffMs(job: Job<TaskJobData>, failedAttempt: number): num
 }
 
 function shouldRetryInQueue(params: {
-  job: Job<TaskJobData>
+  job: WorkerTaskJob
   normalizedError: NormalizedError
 }): {
   enabled: boolean
@@ -302,21 +291,24 @@ function buildErrorCauseChain(input: unknown): Array<{ name: string; message: st
   return chain
 }
 
-async function resolveProjectNameForLogging(projectId: string): Promise<void> {
+async function resolveProjectNameForLogging(
+  projectId: string,
+  projectRepository: ReturnType<typeof createTaskExecutionContext>['repositories']['project'],
+): Promise<void> {
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { name: true },
-    })
-    if (project?.name) {
-      onProjectNameAvailable(projectId, project.name)
+    const projectName = await projectRepository.getProjectName(projectId)
+    if (projectName) {
+      onProjectNameAvailable(projectId, projectName)
     }
   } catch {
     // Swallow – log file routing failure should never crash the worker.
   }
 }
 
-export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Job<TaskJobData>) => Promise<Record<string, unknown> | void>) {
+export async function withTaskLifecycle(job: WorkerTaskJob, handler: WorkerTaskHandler) {
+  const context = createTaskExecutionContext(job)
+  const taskRepository = context.repositories.task
+  const projectRepository = context.repositories.project
   const data = job.data
   const taskId = data.taskId
   const logger = buildWorkerLogger(data, job.queueName)
@@ -324,10 +316,10 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
   let billingInfo = (data.billingInfo || null) as TaskBillingInfo | null
 
   // Register project name for per-project log file routing
-  void resolveProjectNameForLogging(data.projectId)
+  void resolveProjectNameForLogging(data.projectId, projectRepository)
 
   const heartbeatTimer = setInterval(() => {
-    void touchTaskHeartbeat(taskId)
+    void taskRepository.touchHeartbeat(taskId)
   }, 10_000)
 
   try {
@@ -342,9 +334,9 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
         episodeId: data.episodeId || null,
       },
     })
-    const markedProcessing = await tryMarkTaskProcessing(taskId)
+    const markedProcessing = await taskRepository.markProcessing(taskId)
     if (!markedProcessing) {
-      const rollbackResult = await rollbackTaskBillingForTask({
+      const rollbackResult = await taskRepository.rollbackBillingForTask({
         taskId,
         billingInfo,
       })
@@ -422,9 +414,9 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
         result: (result || undefined) as Record<string, unknown> | void,
         textUsage,
       })) as TaskBillingInfo
-      await updateTaskBillingInfo(taskId, billingInfo)
+      await taskRepository.updateBillingInfo(taskId, billingInfo)
     }
-    const markedCompleted = await tryMarkTaskCompleted(taskId, result || null)
+    const markedCompleted = await taskRepository.markCompleted(taskId, result || null)
     if (!markedCompleted) {
       logger.info({
         action: 'worker.skip.completed',
@@ -471,7 +463,7 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
           id: taskId,
           billingInfo,
         })) as TaskBillingInfo
-        await updateTaskBillingInfo(taskId, billingInfo)
+        await taskRepository.updateBillingInfo(taskId, billingInfo)
       }
       logger.info({
         action: 'worker.terminated',
@@ -596,9 +588,9 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
         id: taskId,
         billingInfo,
       })) as TaskBillingInfo
-      await updateTaskBillingInfo(taskId, billingInfo)
+      await taskRepository.updateBillingInfo(taskId, billingInfo)
     }
-    const markedFailed = await tryMarkTaskFailed(taskId, normalizedError.code, normalizedError.message)
+    const markedFailed = await taskRepository.markFailed(taskId, normalizedError.code, normalizedError.message)
     if (!markedFailed) {
       logger.info({
         action: 'worker.skip.failed',
@@ -645,7 +637,8 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
   }
 }
 
-export async function reportTaskProgress(job: Job<TaskJobData>, progress: number, payload?: Record<string, unknown>) {
+export async function reportTaskProgress(job: WorkerTaskJob, progress: number, payload?: Record<string, unknown>) {
+  const context = createTaskExecutionContext(job)
   const value = Math.max(0, Math.min(99, Math.floor(progress)))
   const logger = buildWorkerLogger(job.data, job.queueName)
   const nextPayload: Record<string, unknown> = withFlowFields(job.data, payload)
@@ -674,7 +667,7 @@ export async function reportTaskProgress(job: Job<TaskJobData>, progress: number
     },
   })
 
-  const updated = await tryUpdateTaskProgress(job.data.taskId, value, nextPayload)
+  const updated = await context.repositories.task.updateProgress(job.data.taskId, value, nextPayload)
   if (!updated) {
     return
   }
@@ -699,7 +692,7 @@ export async function reportTaskProgress(job: Job<TaskJobData>, progress: number
 }
 
 export async function reportTaskStreamChunk(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   chunk: LLMStreamChunk,
   payload?: Record<string, unknown>,
 ) {
@@ -728,3 +721,5 @@ export async function reportTaskStreamChunk(
     persist: shouldPersistRunStreamReplay(job.data.type),
   })
 }
+
+

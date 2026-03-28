@@ -1,5 +1,5 @@
 import { InsufficientBalanceError } from '@/lib/billing/errors'
-import { getPrismaErrorCode, isLikelyPrismaDisconnectError, isPrismaRetryableCode } from '@/lib/prisma-error'
+import { getPrismaErrorCode, isLikelyPrismaDisconnectError, isPrismaRetryableCode } from '@engine/prisma-error'
 import { DEFAULT_ERROR_CODE, getErrorSpec, isKnownErrorCode, resolveUnifiedErrorCode, type UnifiedErrorCode } from './codes'
 import type { ErrorContext, NormalizedError, NormalizedErrorDetails } from './types'
 
@@ -337,3 +337,4 @@ export function normalizeTaskError(
 
   return inferred
 }
+

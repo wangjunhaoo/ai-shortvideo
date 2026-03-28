@@ -1,14 +1,13 @@
-import type { Job } from 'bullmq'
+import type { WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
-import { getUserModelConfig } from '@/lib/config-service'
+import { getUserModelConfig } from '@engine/config-service'
 import { removeCharacterPromptSuffix, removeLocationPromptSuffix } from '@/lib/constants'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import type { TaskJobData } from '@/lib/task/types'
 import { TASK_TYPE } from '@/lib/task/types'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
 function readRequiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) {
@@ -28,7 +27,7 @@ function parseJsonPrompt(responseText: string): string {
   return prompt
 }
 
-export async function handleAssetHubAIModifyTask(job: Job<TaskJobData>) {
+export async function handleAssetHubAIModifyTask(job: WorkerTaskJob) {
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const userConfig = await getUserModelConfig(job.data.userId)
   if (!userConfig.analysisModel) {
@@ -113,3 +112,8 @@ export async function handleAssetHubAIModifyTask(job: Job<TaskJobData>) {
     modifiedDescription,
   }
 }
+
+
+
+
+

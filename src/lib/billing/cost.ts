@@ -10,14 +10,14 @@ import {
   parseModelKeyStrict,
   type CapabilityValue,
   type ModelCapabilities,
-} from '@/lib/model-config-contract'
+} from '@core/model-config-contract'
 import {
   findBuiltinCapabilities,
   listBuiltinCapabilityCatalog,
-} from '@/lib/model-capabilities/catalog'
-import { validateCapabilitySelectionForModel } from '@/lib/model-capabilities/lookup'
-import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
-import type { PricingApiType } from '@/lib/model-pricing/catalog'
+} from '@core/model-capabilities/catalog'
+import { validateCapabilitySelectionForModel } from '@core/model-capabilities/lookup'
+import { resolveBuiltinPricing } from '@core/model-pricing/lookup'
+import type { PricingApiType } from '@core/model-pricing/catalog'
 
 export const USD_TO_CNY = 7.2
 
@@ -548,3 +548,5 @@ export function calcLipSync(model = DEFAULT_LIP_SYNC_MODEL_ID): number {
   })
   return unitPrice * getMarkup('lipSync')
 }
+
+

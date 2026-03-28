@@ -1,6 +1,6 @@
-import { prisma } from '@/lib/prisma'
 import { removeLocationPromptSuffix } from '@/lib/constants'
 import type { StoryToScriptClipCandidate } from '@/lib/novel-promotion/story-to-script/orchestrator'
+import type { ProjectRepository } from '@engine/repositories/project-repository'
 
 export type AnyObj = Record<string, unknown>
 
@@ -30,6 +30,7 @@ export function resolveClipRecordId(clipMap: Map<string, string>, clipId: string
 }
 
 export async function persistAnalyzedCharacters(params: {
+  projectRepository: ProjectRepository
   projectInternalId: string
   existingNames: Set<string>
   analyzedCharacters: Record<string, unknown>[]
@@ -57,29 +58,24 @@ export async function persistAnalyzedCharacters(params: {
       age_range: item.age_range,
     }
 
-    const createdRow = await prisma.novelPromotionCharacter.create({
-      data: {
-        novelPromotionProjectId: params.projectInternalId,
-        name,
-        aliases: JSON.stringify(toStringArray(item.aliases)),
-        introduction: asString(item.introduction) || null,
-        profileData: JSON.stringify(profileData),
-        profileConfirmed: false,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
+    const createdRow = await params.projectRepository.createNovelCharacter({
+      novelPromotionProjectId: params.projectInternalId,
+      name,
+      aliases: toStringArray(item.aliases),
+      introduction: asString(item.introduction) || undefined,
+      profileData,
+      profileConfirmed: false,
     })
 
     params.existingNames.add(key)
-    created.push(createdRow)
+    created.push({ id: createdRow.id, name })
   }
 
   return created
 }
 
 export async function persistAnalyzedLocations(params: {
+  projectRepository: ProjectRepository
   projectInternalId: string
   existingNames: Set<string>
   analyzedLocations: Record<string, unknown>[]
@@ -105,95 +101,47 @@ export async function persistAnalyzedLocations(params: {
     const key = name.toLowerCase()
     if (params.existingNames.has(key)) continue
 
-    const location = await prisma.novelPromotionLocation.create({
-      data: {
-        novelPromotionProjectId: params.projectInternalId,
-        name,
-        summary: asString(item.summary) || null,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
+    const location = await params.projectRepository.createNovelLocation({
+      novelPromotionProjectId: params.projectInternalId,
+      name,
+      summary: asString(item.summary) || null,
     })
 
     const cleanDescriptions = mergedDescriptions.map((desc) => removeLocationPromptSuffix(desc || ''))
     for (let i = 0; i < cleanDescriptions.length; i += 1) {
-      await prisma.locationImage.create({
-        data: {
-          locationId: location.id,
-          imageIndex: i,
-          description: cleanDescriptions[i],
-        },
+      await params.projectRepository.createLocationImage({
+        locationId: location.id,
+        imageIndex: i,
+        description: cleanDescriptions[i],
       })
     }
 
     params.existingNames.add(key)
-    created.push(location)
+    created.push({ id: location.id, name })
   }
 
   return created
 }
 
 export async function persistClips(params: {
+  projectRepository: ProjectRepository
   episodeId: string
   clipList: StoryToScriptClipCandidate[]
 }) {
-  const existing = await prisma.novelPromotionClip.findMany({
-    where: { episodeId: params.episodeId },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-  const createdClips: Array<{ id: string; clipKey: string }> = []
-  for (let index = 0; index < params.clipList.length; index += 1) {
-    const clip = params.clipList[index]
-    const target = existing[index]
-    if (target) {
-      const updated = await prisma.novelPromotionClip.update({
-        where: { id: target.id },
-        data: {
-          startText: clip.startText,
-          endText: clip.endText,
-          summary: clip.summary,
-          location: clip.location,
-          characters: clip.characters.length > 0 ? JSON.stringify(clip.characters) : null,
-          content: clip.content,
-        },
-        select: {
-          id: true,
-        },
-      })
-      createdClips.push({ id: updated.id, clipKey: clip.id })
-      continue
-    }
-
-    const created = await prisma.novelPromotionClip.create({
-      data: {
-        episodeId: params.episodeId,
-        startText: clip.startText,
-        endText: clip.endText,
-        summary: clip.summary,
-        location: clip.location,
-        characters: clip.characters.length > 0 ? JSON.stringify(clip.characters) : null,
-        content: clip.content,
-      },
-      select: {
-        id: true,
-      },
-    })
-    createdClips.push({ id: created.id, clipKey: clip.id })
-  }
-
-  const staleClipIds = existing.slice(params.clipList.length).map((item) => item.id)
-  if (staleClipIds.length > 0) {
-    await prisma.novelPromotionClip.deleteMany({
-      where: {
-        id: {
-          in: staleClipIds,
-        },
-      },
-    })
-  }
-
-  return createdClips
+  const rows = await params.projectRepository.saveClipsForEpisode(
+    params.episodeId,
+    params.clipList.map((clip) => ({
+      startText: clip.startText,
+      endText: clip.endText,
+      summary: clip.summary,
+      location: clip.location,
+      characters: clip.characters,
+      content: clip.content,
+    })),
+  )
+  return rows.map((row, index) => ({
+    id: row.id,
+    clipKey: params.clipList[index]?.id || row.id,
+  }))
 }
+

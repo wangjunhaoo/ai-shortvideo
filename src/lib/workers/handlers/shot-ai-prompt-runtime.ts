@@ -1,11 +1,10 @@
-import type { Job } from 'bullmq'
+import type { WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 
 export async function runShotPromptCompletion(params: {
-  job: Job<TaskJobData>
+  job: WorkerTaskJob
   model: string
   prompt: string
   action: string
@@ -41,3 +40,6 @@ export async function runShotPromptCompletion(params: {
     }
   })()
 }
+
+
+

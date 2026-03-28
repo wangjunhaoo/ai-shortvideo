@@ -1,6 +1,5 @@
 import sharp from 'sharp'
-import { type Job } from 'bullmq'
-import { createScopedLogger } from '@/lib/logging/core'
+import { createTaskExecutionContext, createTaskExecutionLogger, type WorkerTaskJob } from '@engine/runtime-context'
 import { withLogContext } from '@/lib/logging/context'
 import { generateImage, generateVideo } from '@/lib/generator-api'
 import { generateLipSync } from '@/lib/lipsync'
@@ -12,12 +11,10 @@ import {
   getProjectModelConfig,
   getUserModelConfig,
   resolveProjectModelCapabilityGenerationOptions,
-} from '@/lib/config-service'
+} from '@engine/config-service'
 import { TaskTerminatedError } from '@/lib/task/errors'
-import { isTaskActive, trySetTaskExternalId } from '@/lib/task/service'
-import { type TaskJobData } from '@/lib/task/types'
+import { defaultTaskRepository } from './repositories/task-repository'
 import { reportTaskProgress } from './shared'
-import { prisma } from '@/lib/prisma'
 
 const DEFAULT_POLL_TIMEOUT_MS = Number.parseInt(process.env.WORKER_EXTERNAL_TIMEOUT_MS || String(20 * 60 * 1000), 10)
 const DEFAULT_POLL_INTERVAL_MS = Number.parseInt(process.env.WORKER_EXTERNAL_POLL_MS || '3000', 10)
@@ -27,26 +24,14 @@ const DEFAULT_POLL_INTERVAL_MS = Number.parseInt(process.env.WORKER_EXTERNAL_POL
  */
 async function getTaskExistingExternalId(taskId: string): Promise<string | null> {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { externalId: true },
-    })
-    const val = task?.externalId?.trim()
-    return val || null
+    return await defaultTaskRepository.getExternalId(taskId)
   } catch {
     return null
   }
 }
 
-function scopedWorkerUtilLogger(job: Job<TaskJobData>, action: string) {
-  return createScopedLogger({
-    module: 'worker.utils',
-    action,
-    requestId: job.data.trace?.requestId || undefined,
-    taskId: job.data.taskId,
-    projectId: job.data.projectId,
-    userId: job.data.userId,
-  })
+function scopedWorkerUtilLogger(job: WorkerTaskJob, action: string) {
+  return createTaskExecutionLogger(job, action, 'worker.utils')
 }
 
 export function parseJsonArray(value: unknown): string[] {
@@ -65,8 +50,8 @@ export async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export async function assertTaskActive(job: Job<TaskJobData>, stage: string) {
-  const active = await isTaskActive(job.data.taskId)
+export async function assertTaskActive(job: WorkerTaskJob, stage: string) {
+  const active = await createTaskExecutionContext(job).repositories.task.isActive(job.data.taskId)
   if (active) return
   throw new TaskTerminatedError(job.data.taskId, `Task terminated during ${stage}`)
 }
@@ -84,7 +69,7 @@ function normalizeExternalId(result: {
 }
 
 export async function waitExternalResult(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   externalId: string,
   userId: string,
   opts?: { timeoutMs?: number; intervalMs?: number; progressStart?: number; progressEnd?: number },
@@ -105,7 +90,7 @@ export async function waitExternalResult(
     },
   })
 
-  await trySetTaskExternalId(job.data.taskId, externalId)
+  await createTaskExecutionContext(job).repositories.task.setExternalId(job.data.taskId, externalId)
 
   while (Date.now() - startAt <= timeoutMs) {
     await assertTaskActive(job, 'polling_external')
@@ -161,7 +146,7 @@ export async function waitExternalResult(
 }
 
 export async function resolveImageSourceFromGeneration(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   params: {
     userId: string
     modelId: string
@@ -287,7 +272,7 @@ export async function resolveImageSourceFromGeneration(
  * 只有需要利用多图结果时才调用此函数。
  */
 export async function resolveImageSourcesFromGeneration(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   params: {
     userId: string
     modelId: string
@@ -401,7 +386,7 @@ export async function resolveImageSourcesFromGeneration(
 }
 
 export async function resolveVideoSourceFromGeneration(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   params: {
     userId: string
     modelId: string
@@ -527,7 +512,7 @@ export async function resolveVideoSourceFromGeneration(
 }
 
 export async function resolveLipSyncVideoSource(
-  job: Job<TaskJobData>,
+  job: WorkerTaskJob,
   params: {
     userId: string
     videoUrl: string
@@ -698,3 +683,6 @@ export async function getProjectModels(projectId: string, userId: string) {
 export async function getUserModels(userId: string) {
   return await getUserModelConfig(userId)
 }
+
+
+

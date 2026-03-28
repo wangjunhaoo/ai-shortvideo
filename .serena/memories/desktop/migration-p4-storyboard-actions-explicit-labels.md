@@ -1,0 +1,1 @@
+2026-03-23：继续收 storyboard 动作区翻译桥接。更新 StoryboardGroupActions.types.ts、StoryboardGroupRegenerateTextButton.tsx、StoryboardGroupGenerateAllButton.tsx、StoryboardGroupManageButtons.tsx、StoryboardGroupActions.tsx，把 t() 透传全部改成显式 label/title 契约。StoryboardGroupActions 现在只在上层解析文案，子按钮组件不再依赖翻译函数桥接。

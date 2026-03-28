@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 AIDataModalBasicSection.tsx。新增 AIDataModalBasicPrimaryFields.tsx，把镜头类型和运镜方式输入区从主组件中抽出；新增 AIDataModalBasicSceneSummary.tsx，把场景和角色摘要展示区从主组件中抽出；新增 AIDataModalBasicPrompts.tsx，把视觉描述和视频提示词输入区从主组件中抽出。这样 AIDataModalBasicSection.tsx 现在主要负责基础数据段落标题和三个子区块分发。desktop:build:web 已通过。

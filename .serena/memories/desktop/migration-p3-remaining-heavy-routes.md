@@ -1,0 +1,1 @@
+2026-03-22：在完成下载/导出、轻量提交、生图、lip-sync、voice-generate 之后，src/app/api/novel-promotion 下仍保留 route 内直连 prisma/submitTask 的重块只剩 3 处：1) generate-video/route.ts；2) panel-variant/route.ts；3) episodes/split-by-markers/route.ts。后续迁移优先级建议：先 split-by-markers（相对轻），再 panel-variant（事务+插入面板），最后 generate-video（最重，含批量与单 panel 两个分支）。

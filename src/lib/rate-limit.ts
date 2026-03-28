@@ -6,7 +6,10 @@
  */
 
 import { redis } from '@/lib/redis'
-import { NextRequest } from 'next/server'
+
+const IS_DESKTOP_LOCAL_TASKS = ['1', 'true', 'yes', 'on'].includes(
+    (process.env.DESKTOP_LOCAL_TASKS || '').trim().toLowerCase(),
+)
 
 // ============================================================
 // 类型
@@ -60,6 +63,14 @@ export async function checkRateLimit(
     ip: string,
     config: RateLimitConfig,
 ): Promise<RateLimitResult> {
+    if (IS_DESKTOP_LOCAL_TASKS) {
+        return {
+            limited: false,
+            remaining: config.maxRequests,
+            retryAfterSeconds: 0,
+        }
+    }
+
     const key = `rate_limit:${action}:${ip}`
     const now = Date.now()
     const windowMs = config.windowSeconds * 1000
@@ -125,7 +136,7 @@ export async function checkRateLimit(
  * 从 NextRequest 提取客户端真实 IP。
  * 依次检查常见反向代理头，最终回退到 127.0.0.1。
  */
-export function getClientIp(req: NextRequest): string {
+export function getClientIp(req: Request): string {
     // x-forwarded-for 可能包含多个 IP（逗号分隔），取第一个
     const forwarded = req.headers.get('x-forwarded-for')
     if (forwarded) {
@@ -137,8 +148,8 @@ export function getClientIp(req: NextRequest): string {
     if (realIp) return realIp.trim()
 
     // Next.js 14+ 的 ip 属性
-    if ('ip' in req && typeof (req as NextRequest & { ip?: string }).ip === 'string') {
-        return (req as NextRequest & { ip?: string }).ip!
+    if ('ip' in req && typeof (req as Request & { ip?: string }).ip === 'string') {
+        return (req as Request & { ip?: string }).ip!
     }
 
     return '127.0.0.1'

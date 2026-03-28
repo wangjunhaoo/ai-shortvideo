@@ -2,7 +2,7 @@ import { convertToModelMessages, safeValidateUIMessages, stepCountIs, streamText
 import { createOpenAI } from '@ai-sdk/openai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { getProviderConfig, getProviderKey } from '@/lib/api-config'
-import { getUserModelConfig } from '@/lib/config-service'
+import { getUserModelConfig } from '@engine/config-service'
 import { resolveLlmRuntimeModel } from '@/lib/llm/runtime-shared'
 import { AssistantPlatformError } from './errors'
 import { getAssistantSkill } from './registry'
@@ -128,3 +128,4 @@ export async function createAssistantChatResponse(input: {
     },
   })
 }
+

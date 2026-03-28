@@ -1,0 +1,1 @@
+2026-03-27：desktop/main.cjs 已收成 Electron 壳层。新增 desktop/runtime/managed-web-runtime.cjs 承接运行时目录准备、env 文件写入、子进程托管和关闭；新增 desktop/runtime/next-runtime-adapter.cjs 集中 Next + Prisma + /api/system/boot-id 细节，包括依赖校验、Prisma client 准备、db push、next start 和健康检查。后续替换本地 engine 时应优先替换 next-runtime-adapter，而不是重新改 main.cjs。

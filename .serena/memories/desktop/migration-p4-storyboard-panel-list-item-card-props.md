@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardPanelListItem.tsx。新增 hooks/useStoryboardPanelListItemCardProps.ts，把 PanelCard 的长 props 桥接从单项列表组件中抽出。这样 StoryboardPanelListItem.tsx 现在主要负责 wrapper 层和 PanelCard 分发，不再直接承载整段 PanelCard 参数组装。desktop:build:web 已通过。

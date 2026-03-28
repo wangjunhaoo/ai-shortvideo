@@ -1,6 +1,3 @@
 'use client'
 
-export {
-  useVoiceStageRuntime,
-  type VoiceStageShellProps,
-} from '@/lib/novel-promotion/stages/voice-stage-runtime-core'
+export * from '@renderer/modules/project-detail/novel-promotion/components/voice-stage/hooks/useVoiceStageRuntime'

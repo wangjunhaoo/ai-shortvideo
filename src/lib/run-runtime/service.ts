@@ -143,6 +143,20 @@ type GraphRuntimeClient = GraphRuntimeTx & {
 }
 
 const runtimeClient = prisma as unknown as GraphRuntimeClient
+let syntheticGraphEventId = BigInt(0)
+
+function shouldProvideGraphEventId() {
+  const databaseUrl = (process.env.DATABASE_URL || '').trim().toLowerCase()
+  return databaseUrl.startsWith('file:')
+}
+
+function nextGraphEventId() {
+  const candidate = BigInt(Date.now()) * BigInt(1000)
+  syntheticGraphEventId = candidate > syntheticGraphEventId
+    ? candidate
+    : syntheticGraphEventId + BigInt(1)
+  return syntheticGraphEventId
+}
 
 function toObject(value: unknown): JsonRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -883,6 +897,7 @@ export async function appendRunEventWithSeq(input: RunEventInput): Promise<RunEv
 
     const created = await tx.graphEvent.create({
       data: {
+        ...(shouldProvideGraphEventId() ? { id: nextGraphEventId() } : {}),
         runId: input.runId,
         projectId: input.projectId,
         userId: input.userId,

@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 PanelCard.tsx。新增 PanelCard.types.ts，统一收口面板卡片与候选图数据的 props 契约；新增 PanelCardDeleteButton.tsx，把右上角删除按钮从卡片主体中抽出；新增 PanelCardSideActions.tsx，把图片区域右侧的插入分镜/镜头变体按钮区从卡片主体中抽出；新增 PanelCardEditorSection.tsx，把 PanelEditForm 的状态桥接和编辑区 JSX 从卡片主体中抽出。这样 PanelCard.tsx 现在主要负责 GlassSurface 壳、ImageSection 和三个子区块装配。desktop:build:web 已通过。

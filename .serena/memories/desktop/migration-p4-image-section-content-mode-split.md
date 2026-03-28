@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 ImageSectionContent.tsx。新增 ImageSectionContent.types.ts，统一收口图片区内容分发的 props 与模式类型；新增 hooks/useImageSectionContentMode.ts，把删除中、修改中、提交中、候选图、失败、成图、空态这组模式判定从主组件中抽出；新增 ImageSectionPreviewImage.tsx，承接普通成图预览视图。这样 ImageSectionContent.tsx 现在主要负责按模式分发 status/candidate/preview/empty 四类视图。desktop:build:web 已通过。

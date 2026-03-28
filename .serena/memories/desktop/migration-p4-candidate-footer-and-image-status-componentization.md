@@ -1,0 +1,1 @@
+2026-03-23：继续收 candidate/status 上游桥接。CandidateSelector.types.ts 新增 CandidateSelectorFooterProps，useCandidateSelectorRuntime.ts 不再向 CandidateSelectorFooter 透传 t()，改为显式标签契约。ImageSectionStatusContent.tsx 从返回 renderLoadingState/renderFailedState/renderEmptyState 的工具形态改为真实组件；ImageSectionContent.tsx 改为按 variant 直接分发 loading/failed/empty 视图，减少半组件半工具函数的调用链。

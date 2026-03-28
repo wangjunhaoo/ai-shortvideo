@@ -1,1 +1,1 @@
-export { default } from './script-view/ScriptViewContainer'
+export * from '@renderer/modules/project-detail/novel-promotion/components/ScriptView'

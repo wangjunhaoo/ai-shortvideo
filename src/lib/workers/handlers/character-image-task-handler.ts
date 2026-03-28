@@ -1,7 +1,8 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { addCharacterPromptSuffix, getArtStylePrompt, isArtStyleValue, PRIMARY_APPEARANCE_INDEX, type ArtStyleValue } from '@/lib/constants'
-import { type TaskJobData } from '@/lib/task/types'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
 import { reportTaskProgress } from '../shared'
@@ -28,48 +29,9 @@ function resolvePayloadArtStyle(payload: AnyObj): ArtStyleValue | undefined {
   return parsedArtStyle
 }
 
-interface CharacterAppearanceRecord {
-  id: string
-  characterId: string
-  appearanceIndex: number
-  descriptions: string | null
-  description: string | null
-  imageUrls: string | null
-  selectedIndex: number | null
-  imageUrl: string | null
-  changeReason: string | null
-}
-
-interface CharacterAppearanceWithCharacter extends CharacterAppearanceRecord {
-  character: {
-    name: string
-  }
-}
-
-interface CharacterRecord {
-  id: string
-  name: string
-  appearances: CharacterAppearanceRecord[]
-}
-
-interface PrimaryAppearanceRecord {
-  imageUrl: string | null
-  imageUrls: string | null
-}
-
-interface CharacterImageDb {
-  characterAppearance: {
-    findUnique(args: Record<string, unknown>): Promise<CharacterAppearanceWithCharacter | null>
-    findFirst(args: Record<string, unknown>): Promise<PrimaryAppearanceRecord | null>
-    update(args: Record<string, unknown>): Promise<unknown>
-  }
-  novelPromotionCharacter: {
-    findUnique(args: Record<string, unknown>): Promise<CharacterRecord | null>
-  }
-}
-
-export async function handleCharacterImageTask(job: Job<TaskJobData>) {
-  const db = prisma as unknown as CharacterImageDb
+export async function handleCharacterImageTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const userId = job.data.userId
@@ -78,26 +40,30 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
   if (!modelId) throw new Error('Character model not configured')
 
   const appearanceId = pickFirstString(job.data.targetId, payload.appearanceId)
-  let appearance: CharacterAppearanceRecord | null = null
+  let appearance: {
+    id: string
+    characterId: string
+    appearanceIndex: number
+    descriptions: string | null
+    description: string | null
+    imageUrls: string | null
+    selectedIndex: number | null
+    imageUrl: string | null
+    changeReason: string | null
+  } | null = null
   let characterName = '角色'
 
   if (appearanceId) {
-    const appearanceWithCharacter = await db.characterAppearance.findUnique({
-      where: { id: appearanceId },
-      include: { character: true },
-    })
+    const appearanceWithCharacter = await projectRepository.getCharacterAppearanceWithCharacter(appearanceId)
     if (appearanceWithCharacter) {
       appearance = appearanceWithCharacter
-      characterName = appearanceWithCharacter.character.name
+      characterName = appearanceWithCharacter.character?.name || characterName
     }
   }
 
   const characterId = typeof payload.id === 'string' ? payload.id : null
   if (!appearance && characterId) {
-    const character = await db.novelPromotionCharacter.findUnique({
-      where: { id: characterId },
-      include: { appearances: { orderBy: { appearanceIndex: 'asc' } } },
-    })
+    const character = await projectRepository.getCharacterWithAppearances(characterId)
     appearance = character?.appearances?.[0] || null
     if (character && appearance) {
       characterName = character.name
@@ -114,13 +80,7 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
   // 子形象（不是主形象）生成时，引用主形象图片保持一致性
   const primaryReferenceInputs: string[] = []
   if (appearance.appearanceIndex > PRIMARY_APPEARANCE_INDEX) {
-    const primaryAppearance = await db.characterAppearance.findFirst({
-      where: {
-        characterId: appearance.characterId,
-        appearanceIndex: PRIMARY_APPEARANCE_INDEX,
-      },
-      select: { imageUrl: true, imageUrls: true },
-    })
+    const primaryAppearance = await projectRepository.getPrimaryCharacterAppearance(appearance.characterId)
     if (primaryAppearance) {
       const primaryMainUrl = primaryAppearance.imageUrl
         ? toSignedUrlIfCos(primaryAppearance.imageUrl, 3600)
@@ -179,12 +139,10 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
     : fallbackMain
 
   await assertTaskActive(job, 'persist_character_image')
-  await db.characterAppearance.update({
-    where: { id: appearance.id },
-    data: {
-      imageUrls: encodeImageUrls(nextImageUrls),
-      imageUrl: mainImage || null,
-    },
+  await projectRepository.updateCharacterAppearance({
+    appearanceId: appearance.id,
+    imageUrls: encodeImageUrls(nextImageUrls),
+    imageUrl: mainImage || null,
   })
 
   return {
@@ -193,3 +151,6 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
     imageUrl: mainImage || null,
   }
 }
+
+
+

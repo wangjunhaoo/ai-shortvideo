@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 AIDataModal.tsx。新增 hooks/useAIDataModalRuntime.ts，把 useAIDataModalState、预览 JSON 生成、header/form/preview/footer 四段 props 装配和保存关闭联动从主组件中抽出。这样 AIDataModal.tsx 现在主要负责开关判断和弹窗骨架分发。desktop:build:web 已通过。

@@ -1,8 +1,8 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import VideoPanelCardBody from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video/panel-card/VideoPanelCardBody'
-import type { VideoPanelRuntime } from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video/panel-card/hooks/useVideoPanelActions'
+import VideoPanelCardBody from '@renderer/modules/project-detail/novel-promotion/components/video/panel-card/VideoPanelCardBody'
+import type { VideoPanelRuntime } from '@renderer/modules/project-detail/novel-promotion/components/video/panel-card/hooks/useVideoPanelActions'
 
 vi.mock('@/components/task/TaskStatusInline', () => ({
   default: () => React.createElement('span', null, 'task-status'),
@@ -165,3 +165,4 @@ describe('VideoPanelCardBody', () => {
     expect(markup).toContain('生成首尾帧视频')
   })
 })
+

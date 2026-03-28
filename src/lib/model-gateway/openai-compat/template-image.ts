@@ -7,7 +7,7 @@ import {
   normalizeResponseJson,
   readJsonPath,
 } from '@/lib/openai-compat-template-runtime'
-import { parseModelKeyStrict } from '@/lib/model-config-contract'
+import { parseModelKeyStrict } from '@core/model-config-contract'
 import { resolveOpenAICompatClientConfig } from './common'
 
 const OPENAI_COMPAT_PROVIDER_PREFIX = 'openai-compatible:'
@@ -135,3 +135,4 @@ export async function generateImageViaOpenAICompatTemplate(
     externalId: `OCOMPAT:IMAGE:${providerToken}:${modelRefToken}:${taskId}`,
   }
 }
+

@@ -1,0 +1,1 @@
+2026-03-24：继续上提 storyboard 业务 hook 的消息边界。hooks/usePanelCandidates.ts 新增 PanelCandidateMessages，候选图确认失败文案改由 hooks/useImageGeneration.ts 统一组装；hooks/usePanelImageModification.ts 新增 PanelImageModificationMessages，panel not found 与 modifyFailed 文案改由 hooks/useImageGeneration.ts 统一组装。两条 hook 均已移除 useTranslations('storyboard')。desktop:build:web 已通过。

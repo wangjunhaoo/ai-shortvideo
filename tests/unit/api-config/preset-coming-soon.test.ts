@@ -4,7 +4,7 @@ import {
   encodeModelKey,
   isPresetComingSoonModel,
   isPresetComingSoonModelKey,
-} from '@/app/[locale]/profile/components/api-config/types'
+} from '@renderer/modules/profile/components/api-config/types'
 
 describe('api-config preset coming soon', () => {
   it('registers Nano Banana 2 under Google AI Studio presets', () => {
@@ -50,3 +50,4 @@ describe('api-config preset coming soon', () => {
     ]))
   })
 })
+

@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 StoryboardGroupChromeMainRow.tsx。新增 StoryboardGroupChromeMainRow.types.ts 和 hooks/useStoryboardGroupChromeMainRowProps.ts，把 StoryboardGroupHeader 和 StoryboardGroupActions 两段 props 聚合从主行组件中抽出。这样 StoryboardGroupChromeMainRow.tsx 现在主要负责布局壳和两段子视图分发。desktop:build:web 已通过。

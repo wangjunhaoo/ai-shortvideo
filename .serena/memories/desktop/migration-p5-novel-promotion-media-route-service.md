@@ -1,0 +1,1 @@
+2026-03-27：新增 packages/engine/services/novel-promotion-media-route-service.ts，集中承接 panel/select-candidate、update-prompt、cleanup-unselected-images、video-proxy、undo-regenerate 这批尾部媒体 route；对应 src/app/api/novel-promotion/[projectId] 下 route 已全部退成 apiHandler + service 薄壳。undo-regenerate 的图片/描述回滚逻辑和 video-proxy 的签名 URL 转发已从 route 文件迁出。

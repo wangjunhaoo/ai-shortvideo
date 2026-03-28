@@ -1,12 +1,14 @@
 import sharp from 'sharp'
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { generateImage } from '@/lib/generator-api'
 import { queryFalStatus } from '@/lib/async-submit'
 import { fetchWithTimeoutAndRetry } from '@/lib/ark-api'
 import { getProviderConfig } from '@/lib/api-config'
 import { executeAiVisionStep } from '@/lib/ai-runtime'
-import { getUserModelConfig } from '@/lib/config-service'
+import { getUserModelConfig } from '@engine/config-service'
 import {
   CHARACTER_IMAGE_BANANA_RATIO,
   addCharacterPromptSuffix,
@@ -17,8 +19,8 @@ import { generateUniqueKey, getSignedUrl, uploadObject } from '@/lib/storage'
 import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { TASK_TYPE } from '@/lib/task/types'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
 import {
   parseReferenceImages,
@@ -28,7 +30,7 @@ import {
 const POLL_MAX_ATTEMPTS = 60
 const POLL_INTERVAL_MS = 2000
 async function generateLabeledImage(params: {
-  job: Job<TaskJobData>
+  job: WorkerTaskJob
   imageIndex: number
   userId: string
   imageModel: string
@@ -118,7 +120,10 @@ async function generateLabeledImage(params: {
   }
 }
 
-export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
+export async function handleReferenceToCharacterTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const assetHubRepository = context.repositories.assetHub
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const allReferenceImages = parseReferenceImages(payload)
   if (allReferenceImages.length === 0) {
@@ -252,22 +257,17 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   await assertTaskActive(job, 'reference_to_character_persist')
   if (isBackgroundJob && appearanceId) {
     if (isAssetHub) {
-      await prisma.globalCharacterAppearance.update({
-        where: { id: appearanceId },
-        data: {
-          imageUrl: successfulCosKeys[0],
-          imageUrls: encodeImageUrls(successfulCosKeys),
-          description: description || undefined,
-        },
+      await assetHubRepository.updateGlobalCharacterAppearance(appearanceId, {
+        imageUrl: successfulCosKeys[0],
+        imageUrls: encodeImageUrls(successfulCosKeys),
+        ...(description ? { description } : {}),
       })
     } else {
-      await prisma.characterAppearance.update({
-        where: { id: appearanceId },
-        data: {
-          imageUrl: successfulCosKeys[0],
-          imageUrls: encodeImageUrls(successfulCosKeys),
-          description: description || undefined,
-        },
+      await projectRepository.updateCharacterAppearance({
+        appearanceId,
+        imageUrl: successfulCosKeys[0],
+        imageUrls: encodeImageUrls(successfulCosKeys),
+        ...(description ? { description } : {}),
       })
     }
     await reportTaskProgress(job, 96, {
@@ -295,3 +295,8 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
     description,
   }
 }
+
+
+
+
+

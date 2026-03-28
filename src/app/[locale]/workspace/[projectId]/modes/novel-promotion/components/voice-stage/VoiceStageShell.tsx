@@ -1,9 +1,4 @@
 'use client'
 
-import VoiceStageLayout, { type VoiceStageShellProps } from './VoiceStageLayout'
-
-export type { VoiceStageShellProps }
-
-export default function VoiceStageShell(props: VoiceStageShellProps) {
-  return <VoiceStageLayout {...props} />
-}
+export * from '@renderer/modules/project-detail/novel-promotion/components/voice-stage/VoiceStageShell'
+export { default } from '@renderer/modules/project-detail/novel-promotion/components/voice-stage/VoiceStageShell'

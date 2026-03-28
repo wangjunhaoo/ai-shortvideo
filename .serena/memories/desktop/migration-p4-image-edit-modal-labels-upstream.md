@@ -1,0 +1,1 @@
+2026-03-25：继续上提 storyboard 的 ImageEditModal 翻译边界。ImageEditModal.types.ts 与 ImageEditModal.tsx 已改成根 modal 直接接收显式 labels，不再自己依赖 useTranslations 或 useImageEditModalLabels；StoryboardStagePrimaryModals.tsx 现已成为 image-edit 文案边界，统一组装后向 ImageEditModal 注入。desktop:build:web 已通过。

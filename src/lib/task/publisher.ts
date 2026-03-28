@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { redis } from '@/lib/redis'
+import { publishRuntimeChannelMessage } from '@/lib/runtime-event-bus'
+import { shouldUseInMemoryRuntimeBus } from '@/lib/runtime-mode'
 import {
   TASK_EVENT_TYPE,
   TASK_SSE_EVENT_TYPE,
@@ -51,6 +52,16 @@ const taskModel = (prisma as unknown as { task: TaskModel }).task
 
 function createEphemeralId() {
   return `ephemeral:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`
+}
+
+async function publishChannelMessage(channel: string, message: string) {
+  if (shouldUseInMemoryRuntimeBus()) {
+    await publishRuntimeChannelMessage(channel, message)
+    return
+  }
+
+  const { redis } = await import('../redis')
+  await redis.publish(channel, message)
 }
 
 function isLifecycleEventType(value: string): value is TaskLifecycleEventType {
@@ -278,7 +289,7 @@ export async function publishTaskLifecycleEvent(params: {
     payload: params.payload || null,
   })
 
-  await redis.publish(getProjectChannel(params.projectId), JSON.stringify(message))
+  await publishChannelMessage(getProjectChannel(params.projectId), JSON.stringify(message))
   await mirrorTaskEventToRun(message)
   return message
 }
@@ -351,7 +362,7 @@ export async function publishTaskStreamEvent(params: {
     payload: normalizedPayload,
   })
 
-  await redis.publish(getProjectChannel(params.projectId), JSON.stringify(message))
+  await publishChannelMessage(getProjectChannel(params.projectId), JSON.stringify(message))
   await mirrorTaskEventToRun(message)
   return message
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mergeProvidersForDisplay } from '@/app/[locale]/profile/components/api-config/hooks'
-import type { Provider } from '@/app/[locale]/profile/components/api-config/types'
+import { mergeProvidersForDisplay } from '@renderer/modules/profile/components/api-config/hooks'
+import type { Provider } from '@renderer/modules/profile/components/api-config/types'
 
 describe('useProviders provider order merge', () => {
   it('preserves saved providers order and appends missing presets at the end', () => {
@@ -63,3 +63,4 @@ describe('useProviders provider order merge', () => {
     })
   })
 })
+

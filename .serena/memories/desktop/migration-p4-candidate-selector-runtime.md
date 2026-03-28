@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 CandidateSelector.tsx。更新 CandidateSelector.types.ts，新增头部和缩略图列表契约；新增 CandidateSelectorHeader.tsx、CandidateSelectorThumbnailStrip.tsx、hooks/useCandidateSelectorRuntime.ts，把标题区、缩略图项构造和 footer props 聚合从主组件中抽出。这样 CandidateSelector.tsx 现在主要负责状态和视图分发。desktop:build:web 已通过。

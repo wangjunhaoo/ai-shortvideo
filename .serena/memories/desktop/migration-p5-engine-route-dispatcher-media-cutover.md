@@ -1,0 +1,1 @@
+2026-03-27：更新 desktop/runtime/route-module-dispatcher.cjs，把本地分发范围从 /api/* 扩展到 /m/*。现在 build 产物中的 /m/[publicId] 媒体路由也由 dispatcher 直接按 manifest 匹配并加载 route module 处理，engine-runtime-server 中需要回退到 Next programmatic handler 的范围进一步收缩到页面渲染主链。

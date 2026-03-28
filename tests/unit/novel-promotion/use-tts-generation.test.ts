@@ -24,21 +24,6 @@ vi.mock('react', async () => {
   }
 })
 
-vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string, values?: Record<string, unknown>) => {
-    if (key === 'tts.voiceDesignSaved') {
-      return `voice saved:${String(values?.name ?? '')}`
-    }
-    if (key === 'tts.saveVoiceDesignFailed') {
-      return `save failed:${String(values?.error ?? '')}`
-    }
-    if (key === 'common.unknownError') {
-      return 'unknown error'
-    }
-    return key
-  },
-}))
-
 vi.mock('@/lib/logging/core', () => ({
   logError: (...args: unknown[]) => logErrorMock(...args),
 }))
@@ -62,7 +47,7 @@ vi.mock('@/lib/query/hooks', () => ({
   }),
 }))
 
-import { useTTSGeneration } from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/assets/hooks/useTTSGeneration'
+import { useTTSGeneration } from '@renderer/modules/project-detail/novel-promotion/components/assets/hooks/useTTSGeneration'
 
 describe('useTTSGeneration', () => {
   const originalAlert = globalThis.alert
@@ -94,7 +79,15 @@ describe('useTTSGeneration', () => {
   })
 
   it('does not send a second voice update request after designed voice save succeeds', async () => {
-    const hook = useTTSGeneration({ projectId: 'project-1' })
+    const hook = useTTSGeneration({
+      projectId: 'project-1',
+      messages: {
+        unknownError: 'unknown error',
+        updateVoiceFailed: '更新音色失败:',
+        voiceDesignSaved: (name) => `voice saved:${name}`,
+        saveVoiceDesignFailed: (error) => `save failed:${error}`,
+      },
+    })
 
     await hook.handleVoiceDesignSave('voice-1', 'base64-audio')
 
@@ -110,3 +103,4 @@ describe('useTTSGeneration', () => {
     expect(setVoiceDesignCharacterMock).toHaveBeenCalledWith(null)
   })
 })
+

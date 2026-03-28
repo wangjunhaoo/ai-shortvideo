@@ -1,0 +1,1 @@
+2026-03-27：desktop/runtime/managed-web-runtime.cjs 已从硬编码 next-runtime-adapter 改成 adapter 注入。startManagedRuntime 现在只依赖中性接口：ensurePackagedRuntimeDependencies、smokeTestPackagedRuntimeDependencies、ensureRuntimeReady、startRuntime、waitForRuntimeReady。desktop/main.cjs 当前显式注入 nextRuntimeAdapter。后续切本地 engine 或 IPC runtime 时，只需要新增 adapter 并替换注入点，不需要重写 managed-web-runtime 的编排逻辑。

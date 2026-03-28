@@ -1,4 +1,4 @@
-import type { Job } from 'bullmq'
+import type { WorkerTaskJob } from '@engine/runtime-context'
 import {
   createVoiceDesign,
   validatePreviewText,
@@ -8,7 +8,7 @@ import {
 import { getProviderConfig } from '@/lib/api-config'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
+import { TASK_TYPE } from '@/lib/task/types'
 
 function readRequiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) {
@@ -21,7 +21,7 @@ function readLanguage(value: unknown): 'zh' | 'en' {
   return value === 'en' ? 'en' : 'zh'
 }
 
-export async function handleVoiceDesignTask(job: Job<TaskJobData>) {
+export async function handleVoiceDesignTask(job: WorkerTaskJob) {
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const voicePrompt = readRequiredString(payload.voicePrompt, 'voicePrompt')
   const previewText = readRequiredString(payload.previewText, 'previewText')
@@ -76,3 +76,6 @@ export async function handleVoiceDesignTask(job: Job<TaskJobData>) {
     taskType: job.data.type === TASK_TYPE.ASSET_HUB_VOICE_DESIGN ? TASK_TYPE.ASSET_HUB_VOICE_DESIGN : TASK_TYPE.VOICE_DESIGN,
   }
 }
+
+
+

@@ -1,0 +1,1 @@
+2026-03-22：继续推进 renderer/novel-promotion 页面私有实现下沉。`NovelInputStage.tsx` 已拆出首批 input-stage 模块：`components/input-stage/RatioSelector.tsx`、`components/input-stage/StyleSelector.tsx`、`components/input-stage/useNovelInputTextState.ts`。比例选择、风格选择、IME 组合输入本地状态已从页面内联实现迁出，`NovelInputStage.tsx` 只负责翻译、配置装配与页面渲染。`npm run desktop:build:web` 已通过。后续可继续拆脚本视图或资产组件。

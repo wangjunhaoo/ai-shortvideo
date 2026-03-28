@@ -1,33 +1,56 @@
 import { logError as _ulogError } from '@/lib/logging/core'
-import type Redis from 'ioredis'
-import { createSubscriber } from '@/lib/redis'
+import { addRuntimeChannelListener } from '@/lib/runtime-event-bus'
+import { shouldUseInMemoryRuntimeBus } from '@/lib/runtime-mode'
 
 type MessageHandler = (message: string) => void
 
+type RedisSubscriber = {
+  on: {
+    (event: 'message', handler: (channel: string, message: string) => void): void
+    (event: 'error', handler: (error: Error) => void): void
+  }
+  subscribe: (channel: string) => Promise<unknown>
+  unsubscribe: (channel: string) => Promise<unknown>
+}
+
 class SharedSubscriber {
-  private readonly subscriber: Redis
   private readonly listeners = new Map<string, Map<number, MessageHandler>>()
+  private readonly runtimeBusEnabled = shouldUseInMemoryRuntimeBus()
+  private readonly channelTeardowns = new Map<string, () => Promise<void>>()
   private listenerSeq = 1
+  private subscriberPromise: Promise<RedisSubscriber> | null = null
 
-  constructor() {
-    this.subscriber = createSubscriber()
-    this.subscriber.on('message', (channel, message) => {
-      const channelListeners = this.listeners.get(channel)
-      if (!channelListeners || channelListeners.size === 0) return
+  private dispatchMessage(channel: string, message: string) {
+    const channelListeners = this.listeners.get(channel)
+    if (!channelListeners || channelListeners.size === 0) return
 
-      for (const handler of channelListeners.values()) {
-        try {
-          handler(message)
-        } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : String(error)
-          _ulogError(`[SSE:shared] listener error channel=${channel} error=${message}`)
-        }
+    for (const handler of channelListeners.values()) {
+      try {
+        handler(message)
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        _ulogError(`[SSE:shared] listener error channel=${channel} error=${message}`)
       }
+    }
+  }
+
+  private async ensureRedisSubscriber() {
+    if (this.subscriberPromise) {
+      return await this.subscriberPromise
+    }
+
+    this.subscriberPromise = import('../redis').then(({ createSubscriber }) => {
+      const subscriber = createSubscriber() as unknown as RedisSubscriber
+      subscriber.on('message', (channel, message) => {
+        this.dispatchMessage(channel, message)
+      })
+      subscriber.on('error', (error) => {
+        _ulogError(`[SSE:shared] redis error: ${error?.message || 'unknown'}`)
+      })
+      return subscriber
     })
 
-    this.subscriber.on('error', (error) => {
-      _ulogError(`[SSE:shared] redis error: ${error?.message || 'unknown'}`)
-    })
+    return await this.subscriberPromise
   }
 
   async addChannelListener(channel: string, handler: MessageHandler): Promise<() => Promise<void>> {
@@ -42,7 +65,15 @@ class SharedSubscriber {
 
     try {
       if (channelListeners.size === 1) {
-        await this.subscriber.subscribe(channel)
+        if (this.runtimeBusEnabled) {
+          const teardown = await addRuntimeChannelListener(channel, (message) => {
+            this.dispatchMessage(channel, message)
+          })
+          this.channelTeardowns.set(channel, teardown)
+        } else {
+          const subscriber = await this.ensureRedisSubscriber()
+          await subscriber.subscribe(channel)
+        }
       }
     } catch (error) {
       channelListeners.delete(listenerId)
@@ -60,8 +91,18 @@ class SharedSubscriber {
       if (listeners.size > 0) return
 
       this.listeners.delete(channel)
+      if (this.runtimeBusEnabled) {
+        const teardown = this.channelTeardowns.get(channel)
+        this.channelTeardowns.delete(channel)
+        try {
+          await teardown?.()
+        } catch {}
+        return
+      }
+
       try {
-        await this.subscriber.unsubscribe(channel)
+        const subscriber = await this.ensureRedisSubscriber()
+        await subscriber.unsubscribe(channel)
       } catch {}
     }
   }

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/icons'
 import type { ModelCapabilityOption, CapabilityFieldDefinition } from './config-modals/ModelCapabilityDropdown'
-import type { CapabilityValue } from '@/lib/model-config-contract'
+import type { CapabilityValue } from '@core/model-config-contract'
 export interface ModelDropdownTestProps {
     models: ModelCapabilityOption[]
     value: string | undefined
@@ -540,3 +540,4 @@ export function ModelDropdownV5(props: ModelDropdownTestProps) {
         </>
     )
 }
+

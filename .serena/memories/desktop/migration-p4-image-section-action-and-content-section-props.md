@@ -1,0 +1,1 @@
+2026-03-23：继续收 image section 上游桥接。新增 hooks/useImageSectionActionButtonsProps.ts，把 ImageSectionPrimaryActions 和 ImageSectionUndoAction 的 props 聚合与外层容器 class 从 ImageSectionActionButtons.tsx 中抽出。新增 hooks/useImageSectionContentSectionProps.ts，把 ImageSectionContent.tsx 中 status/candidate/preview 三段 props 聚合抽出；ImageSectionContent 现在按 mode 直接分发三类视图。

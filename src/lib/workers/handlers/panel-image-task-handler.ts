@@ -1,5 +1,7 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { getArtStylePrompt } from '@/lib/constants'
 import { createScopedLogger } from '@/lib/logging/core'
 import { type TaskJobData } from '@/lib/task/types'
@@ -20,7 +22,7 @@ import {
   pickFirstString,
   resolveNovelData,
 } from './image-task-handler-shared'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
 function parseJsonUnknown(raw: string | null | undefined): unknown | null {
   if (!raw) return null
@@ -150,18 +152,18 @@ function buildPanelPrompt(params: {
   })
 }
 
-export async function handlePanelImageTask(job: Job<TaskJobData>) {
+export async function handlePanelImageTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const panelId = pickFirstString(payload.panelId, job.data.targetId)
   if (!panelId) throw new Error('panelId missing')
 
-  const panel = await prisma.novelPromotionPanel.findUnique({
-    where: { id: panelId },
-  })
+  const panel = await projectRepository.getPanelById(panelId)
 
   if (!panel) throw new Error('Panel not found')
 
-  const projectData = await resolveNovelData(job.data.projectId)
+  const projectData = await resolveNovelData(job.data.projectId, projectRepository)
   const modelConfig = await getProjectModels(job.data.projectId, job.data.userId)
   const modelKey = modelConfig.storyboardModel
   if (!modelKey) throw new Error('Storyboard model not configured')
@@ -206,9 +208,9 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       videoPrompt: panel.videoPrompt,
       location: panel.location,
       characters: panel.characters,
-      srtSegment: panel.srtSegment,
-      photographyRules: panel.photographyRules,
-      actingNotes: panel.actingNotes,
+      srtSegment: panel.srtSegment ?? null,
+      photographyRules: panel.photographyRules ?? null,
+      actingNotes: panel.actingNotes ?? null,
     },
     projectData,
   })
@@ -256,20 +258,16 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
 
   await assertTaskActive(job, 'persist_panel_image')
   if (isFirstGeneration) {
-    await prisma.novelPromotionPanel.update({
-      where: { id: panel.id },
-      data: {
-        imageUrl: candidates[0] || null,
-        candidateImages: candidateCount > 1 ? JSON.stringify(candidates) : null,
-      },
+    await projectRepository.updatePanelImageState({
+      panelId: panel.id,
+      imageUrl: candidates[0] || null,
+      candidateImages: candidateCount > 1 ? JSON.stringify(candidates) : null,
     })
   } else {
-    await prisma.novelPromotionPanel.update({
-      where: { id: panel.id },
-      data: {
-        previousImageUrl: panel.imageUrl,
-        candidateImages: JSON.stringify(candidates),
-      },
+    await projectRepository.updatePanelImageState({
+      panelId: panel.id,
+      previousImageUrl: panel.imageUrl,
+      candidateImages: JSON.stringify(candidates),
     })
   }
 
@@ -279,3 +277,6 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     imageUrl: isFirstGeneration ? candidates[0] || null : null,
   }
 }
+
+
+

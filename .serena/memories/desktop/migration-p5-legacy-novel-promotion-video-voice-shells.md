@@ -1,0 +1,7 @@
+2026-03-28：继续压缩旧 src/app/[locale]/workspace/[projectId]/modes/novel-promotion compat 树，把 components/video 与 components/voice 两组目录收成 renderer 壳。
+
+1. video 目录：旧目录下 VideoToolbar.tsx、VideoPromptModal.tsx、VideoPanelCard.tsx、types.ts、FirstLastFramePanel.tsx、index.ts，以及 panel-card/ 下的 VideoPanelCardShell.tsx、VideoPanelCardLayout.tsx、VideoPanelCardHeader.tsx、VideoPanelCardFooter.tsx、VideoPanelCardBody.tsx、types.ts、runtime/videoPanelRuntimeCore.tsx、runtime/shared.ts、hooks/useVideoPanelActions.tsx、runtime/hooks/usePanelVoiceManager.ts、usePanelVideoModel.ts、usePanelTaskStatus.ts、usePanelPromptEditor.ts、usePanelPlayer.ts、usePanelLipSync.ts，已统一改成对 packages/renderer/modules/project-detail/novel-promotion/components/video/* 的 re-export shell。
+2. voice 目录：旧目录下 VoiceToolbar.tsx、VoiceLineCard.tsx、VoiceDesignDialog.tsx、SpeakerVoiceStatus.tsx、SpeakerVoiceBindingDialog.tsx、EmptyVoiceState.tsx、EmotionSettingsPanel.tsx、EmbeddedVoiceToolbar.tsx，已统一改成对 packages/renderer/modules/project-detail/novel-promotion/components/voice/* 的 re-export shell。
+3. 新增 guards：legacy-novel-promotion-video-shell-guard.mjs、legacy-novel-promotion-voice-shell-guard.mjs，并接入 package.json 的 check:* 与 test:guards。
+4. 配合上一轮的 video-stage、voice-stage、prompts-stage、script-view 壳化，旧 compat 树当前只剩 storyboard 目录仍保留较多旧 compat 实现。
+5. desktop:build:web 已通过，说明 video/voice 两组目录壳化后没有引入新的导出签名问题。

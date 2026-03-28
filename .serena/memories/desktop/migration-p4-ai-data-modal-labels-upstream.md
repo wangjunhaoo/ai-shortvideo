@@ -1,0 +1,1 @@
+2026-03-25：继续上提 storyboard 的 AIDataModal 翻译边界。AIDataModal.types.ts 新增 AIDataModalFormLabels 与 AIDataModalViewLabels；AIDataModal.tsx、hooks/useAIDataModalRuntime.ts、hooks/useAIDataModalViewProps.ts 已改成只接收显式 labels；StoryboardStagePrimaryModals.tsx 现已统一组装 ai-data 的 formPaneLabels 与 viewLabels 后注入 AIDataModal。desktop:build:web 已通过。

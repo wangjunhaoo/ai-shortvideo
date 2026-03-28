@@ -1,4 +1,4 @@
-import type { CapabilitySelections } from '@/lib/model-config-contract'
+import type { CapabilitySelections } from '@core/model-config-contract'
 
 // ============================================
 // 项目模式类型
@@ -276,3 +276,4 @@ export interface NovelPromotionProject {
 export interface Project extends BaseProject {
   novelPromotionData?: NovelPromotionProject
 }
+

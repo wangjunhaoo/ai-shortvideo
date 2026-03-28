@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CustomModel } from '@/app/[locale]/profile/components/api-config/types'
+import type { CustomModel } from '@renderer/modules/profile/components/api-config/types'
 import {
   probeModelLlmProtocolViaApi,
   shouldProbeModelLlmProtocol,
   shouldReprobeModelLlmProtocol,
-} from '@/app/[locale]/profile/components/api-config/provider-card/hooks/useProviderCardState'
+} from '@renderer/modules/profile/components/api-config/provider-card/hooks/useProviderCardState'
 
 describe('api-config provider-card protocol probe helpers', () => {
   beforeEach(() => {
@@ -81,3 +81,4 @@ describe('api-config provider-card protocol probe helpers', () => {
     })).rejects.toThrow('PROBE_INCONCLUSIVE')
   })
 })
+

@@ -1,5 +1,7 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { getArtStylePrompt } from '@/lib/constants'
 import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import { type TaskJobData } from '@/lib/task/types'
@@ -19,7 +21,7 @@ import {
   pickFirstString,
   resolveNovelData,
 } from './image-task-handler-shared'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
 // ── 构建变体提示词 ──────────────────────────────────────
 interface VariantPromptParams {
@@ -170,7 +172,9 @@ interface PanelVariantPayload {
   characters?: unknown
 }
 
-export async function handlePanelVariantTask(job: Job<TaskJobData>) {
+export async function handlePanelVariantTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const newPanelId = pickFirstString(payload.newPanelId)
   const sourcePanelId = pickFirstString(payload.sourcePanelId)
@@ -185,13 +189,13 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
   }
 
   // Panel 已在 API route 中创建，这里只需获取它
-  const newPanel = await prisma.novelPromotionPanel.findUnique({ where: { id: newPanelId } })
+  const newPanel = await projectRepository.getPanelById(newPanelId)
   if (!newPanel) throw new Error('New panel not found (should have been created by API route)')
 
-  const sourcePanel = await prisma.novelPromotionPanel.findUnique({ where: { id: sourcePanelId } })
+  const sourcePanel = await projectRepository.getPanelById(sourcePanelId)
   if (!sourcePanel) throw new Error('Source panel not found')
 
-  const projectData = await resolveNovelData(job.data.projectId)
+  const projectData = await resolveNovelData(job.data.projectId, projectRepository)
   if (!projectData.videoRatio) throw new Error('Project videoRatio not configured')
   const aspectRatio = projectData.videoRatio
 
@@ -256,10 +260,7 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
   const cosKey = await uploadImageSourceToCos(source, 'panel-variant', newPanel.id)
 
   await assertTaskActive(job, 'persist_panel_variant')
-  await prisma.novelPromotionPanel.update({
-    where: { id: newPanel.id },
-    data: { imageUrl: cosKey },
-  })
+  await projectRepository.updatePanelImage(newPanel.id, cosKey)
 
   return {
     panelId: newPanel.id,
@@ -267,3 +268,6 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
     imageUrl: cosKey,
   }
 }
+
+
+

@@ -18,7 +18,7 @@ import {
   type LocationAsset,
   type PhotographyRule,
   type StoryboardPanel,
-} from '@/lib/storyboard-phases'
+} from '@core/storyboard-phases'
 import type { ClipPanelsResult, JsonRecord } from './script-to-storyboard-helpers'
 
 type StoryboardClipInput = {
@@ -501,3 +501,4 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     totalStepCount: params.totalClipCount * 4 + 2,
   }
 }
+

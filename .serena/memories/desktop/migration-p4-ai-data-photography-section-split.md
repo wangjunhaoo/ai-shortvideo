@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 AIDataModalPhotographySection.tsx。新增 AIDataModalPhotographyFields.tsx，把摄影规则里的摘要、光线、景深、色调字段从主组件中抽出；新增 AIDataModalPhotographyCharacters.tsx，把角色站位、姿态、朝向编辑区从主组件中抽出。这样 AIDataModalPhotographySection.tsx 现在主要负责摄影规则段落标题和两个子区块分发。desktop:build:web 已通过，后续可继续往 storyboard/index.tsx 或 StoryboardGroup.tsx 周边推进。

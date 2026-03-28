@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { GlassModalShell } from '@/components/ui/primitives'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
-import type { CapabilityValue } from '@/lib/model-config-contract'
+import type { CapabilityValue } from '@core/model-config-contract'
 import { apiFetch } from '@/lib/api-fetch'
 import {
   encodeModelKey,
@@ -510,3 +510,4 @@ export function ApiConfigTabContainer() {
     </div>
   )
 }
+

@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 PanelCardSideActions.tsx。新增 hooks/usePanelCardSideActionsProps.ts，把侧边动作区的空态判定和 PanelActionButtons 标准化参数组装从主组件中抽出。这样 PanelCardSideActions.tsx 现在主要负责定位壳和 PanelActionButtons 分发。desktop:build:web 已通过。

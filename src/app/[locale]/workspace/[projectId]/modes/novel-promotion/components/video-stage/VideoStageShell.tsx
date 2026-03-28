@@ -1,9 +1,4 @@
 'use client'
 
-import VideoStageLayout, { type VideoStageShellProps } from './VideoStageLayout'
-
-export type { VideoStageShellProps }
-
-export default function VideoStageShell(props: VideoStageShellProps) {
-  return <VideoStageLayout {...props} />
-}
+export * from '@renderer/modules/project-detail/novel-promotion/components/video-stage/VideoStageShell'
+export { default } from '@renderer/modules/project-detail/novel-promotion/components/video-stage/VideoStageShell'

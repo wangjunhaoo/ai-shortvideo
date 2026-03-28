@@ -1,22 +1,10 @@
 // Next.js Instrumentation - 在应用启动时执行
 // https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
-
-function isNextBuildPhase(): boolean {
-  const phase = (process.env.NEXT_PHASE || '').trim().toLowerCase()
-  if (phase === 'phase-production-build') return true
-
-  const lifecycle = (process.env.npm_lifecycle_event || '').trim().toLowerCase()
-  if (lifecycle === 'build' || lifecycle === 'desktop:build:web') return true
-
-  const argv = process.argv.map((arg) => arg.toLowerCase())
-  const hasBuildArg = argv.includes('build')
-  const fromNextBin = argv.some((arg) => arg.includes('next/dist/bin/next') || arg.endsWith('/next') || arg.endsWith('\\next'))
-  return hasBuildArg && fromNextBin
-}
+import { isWebBuildPhase, isDesktopLocalTasksEnabled } from '@/lib/runtime-mode'
 
 export async function register() {
   // 构建阶段不执行运行时初始化，避免在打包期间触发 Redis/队列副作用。
-  if (isNextBuildPhase()) {
+  if (isWebBuildPhase()) {
     return
   }
 
@@ -52,8 +40,8 @@ export async function register() {
       _ulogError('[Instrumentation] Failed to reset processing tasks:', error)
     }
 
-    // Phase 2: 将所有 queued 任务重新加入 BullMQ 队列
-    // 解决 Redis 重启后 DB 仍为 queued 但 BullMQ Job 丢失的孤儿任务问题
+    // Phase 2: 将所有 queued 任务重新加入执行器
+    // 桌面模式重入本地执行器；Web 模式仍重入 BullMQ。
     try {
       const { addTaskJob } = await import('@/lib/task/queues')
       const { locales } = await import('@/i18n/routing')
@@ -145,7 +133,8 @@ export async function register() {
       })
 
       if (queuedTasks.length > 0) {
-        _ulogInfo(`[Instrumentation] Found ${queuedTasks.length} queued tasks, re-enqueueing into BullMQ`)
+        const targetExecutor = isDesktopLocalTasksEnabled() ? 'local executor' : 'BullMQ'
+        _ulogInfo(`[Instrumentation] Found ${queuedTasks.length} queued tasks, re-enqueueing into ${targetExecutor}`)
 
         let enqueued = 0
         let failed = 0
@@ -209,7 +198,8 @@ export async function register() {
         }
 
         if (enqueued > 0) {
-          _ulogInfo(`[Instrumentation] Re-enqueued ${enqueued} orphaned tasks into BullMQ`)
+          const targetExecutor = isDesktopLocalTasksEnabled() ? 'local executor' : 'BullMQ'
+          _ulogInfo(`[Instrumentation] Re-enqueued ${enqueued} orphaned tasks into ${targetExecutor}`)
         }
         if (failed > 0) {
           _ulogError(`[Instrumentation] Failed to re-enqueue ${failed} tasks`)
@@ -219,11 +209,15 @@ export async function register() {
       _ulogError('[Instrumentation] Failed to re-enqueue orphaned tasks:', error)
     }
 
-    // ─── Phase 3: 启动 Task Watchdog（DB ↔ BullMQ 持续对账）───
+    // ─── Phase 3: 启动 Task Watchdog（仅 Web/BullMQ 模式）───
     try {
-      const { startTaskWatchdog } = await import('@/lib/task/reconcile')
-      startTaskWatchdog()
-      _ulogInfo('[Instrumentation] Task watchdog started')
+      if (isDesktopLocalTasksEnabled()) {
+        _ulogInfo('[Instrumentation] Task watchdog skipped in desktop local mode')
+      } else {
+        const { startTaskWatchdog } = await import('@/lib/task/reconcile')
+        startTaskWatchdog()
+        _ulogInfo('[Instrumentation] Task watchdog started')
+      }
     } catch (error) {
       _ulogError('[Instrumentation] Failed to start task watchdog:', error)
     }

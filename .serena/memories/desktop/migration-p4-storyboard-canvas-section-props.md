@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 useStoryboardStageSectionProps.ts。新增 hooks/useStoryboardCanvasSectionProps.ts，把整段 canvasProps 组装从 stage section props 中抽成独立 hook；同步复用 StoryboardCanvasLabels，保持 Canvas 和 CanvasItemRuntime 只吃显式 labels 契约。desktop:build:web 已通过。

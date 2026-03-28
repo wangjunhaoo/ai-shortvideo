@@ -1,9 +1,11 @@
-import { Worker, type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
-import { queueConnection } from '@/lib/redis'
-import { QUEUE_NAME } from '@/lib/task/queues'
+import type { Worker } from 'bullmq'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
+import { QUEUE_NAME } from '@/lib/task/queue-contract'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
-import { getUserWorkflowConcurrencyConfig } from '@/lib/config-service'
+import { getUserWorkflowConcurrencyConfig } from '@engine/config-service'
 import { reportTaskProgress, withTaskLifecycle } from './shared'
 import { withUserConcurrencyGate } from './user-concurrency-gate'
 import {
@@ -15,15 +17,18 @@ import {
   uploadVideoSourceToCos,
 } from './utils'
 import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
-import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
-import { parseModelKeyStrict } from '@/lib/model-config-contract'
+import { resolveBuiltinCapabilitiesByModelKey } from '@core/model-capabilities/lookup'
+import { parseModelKeyStrict } from '@core/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
+import type {
+  ProjectRepository,
+  WorkerPanelRecord,
+} from '@engine/repositories/project-repository'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
 type VideoOptionMap = Record<string, VideoOptionValue>
 type VideoGenerationMode = 'normal' | 'firstlastframe'
-type PanelRecord = NonNullable<Awaited<ReturnType<typeof prisma.novelPromotionPanel.findUnique>>>
 
 function toDurationMs(value: number | null | undefined): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
@@ -46,21 +51,23 @@ function extractGenerationOptions(payload: AnyObj): VideoOptionMap {
   return next
 }
 
-async function fetchPanelByStoryboardIndex(storyboardId: string, panelIndex: number) {
-  return await prisma.novelPromotionPanel.findFirst({
-    where: {
-      storyboardId,
-      panelIndex,
-    },
-  })
+async function fetchPanelByStoryboardIndex(
+  projectRepository: ProjectRepository,
+  storyboardId: string,
+  panelIndex: number,
+) {
+  return await projectRepository.getPanelByStoryboardIndex(storyboardId, panelIndex)
 }
 
-async function getPanelForVideoTask(job: Job<TaskJobData>) {
+async function getPanelForVideoTask(
+  job: WorkerTaskJob,
+  projectRepository: ProjectRepository,
+) {
   const payload = (job.data.payload || {}) as AnyObj
 
   // 优先使用 targetType=NovelPromotionPanel 直接定位
   if (job.data.targetType === 'NovelPromotionPanel') {
-    const panel = await prisma.novelPromotionPanel.findUnique({ where: { id: job.data.targetId } })
+    const panel = await projectRepository.getPanelById(job.data.targetId)
     if (!panel) throw new Error('Panel not found')
     return panel
   }
@@ -72,14 +79,15 @@ async function getPanelForVideoTask(job: Job<TaskJobData>) {
     throw new Error('Missing storyboardId/panelIndex for video task')
   }
 
-  const panel = await fetchPanelByStoryboardIndex(storyboardId, Number(panelIndex))
+  const panel = await fetchPanelByStoryboardIndex(projectRepository, storyboardId, Number(panelIndex))
   if (!panel) throw new Error('Panel not found by storyboardId/panelIndex')
   return panel
 }
 
 async function generateVideoForPanel(
-  job: Job<TaskJobData>,
-  panel: PanelRecord,
+  job: WorkerTaskJob,
+  panel: WorkerPanelRecord,
+  projectRepository: ProjectRepository,
   payload: AnyObj,
   modelId: string,
   projectVideoRatio: string | null | undefined,
@@ -129,6 +137,7 @@ async function generateVideoForPanel(
       firstLastFramePayload.lastFramePanelIndex !== undefined
     ) {
       const lastPanel = await fetchPanelByStoryboardIndex(
+        projectRepository,
         firstLastFramePayload.lastFrameStoryboardId,
         Number(firstLastFramePayload.lastFramePanelIndex),
       )
@@ -174,14 +183,16 @@ async function generateVideoForPanel(
   return { cosKey, generationMode }
 }
 
-async function handleVideoPanelTask(job: Job<TaskJobData>) {
+async function handleVideoPanelTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const projectModels = await getProjectModels(job.data.projectId, job.data.userId)
 
   const modelId = typeof payload.videoModel === 'string' ? payload.videoModel.trim() : ''
   if (!modelId) throw new Error('VIDEO_MODEL_REQUIRED: payload.videoModel is required')
 
-  const panel = await getPanelForVideoTask(job)
+  const panel = await getPanelForVideoTask(job, projectRepository)
 
   const generationOptions = extractGenerationOptions(payload)
 
@@ -193,6 +204,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
   const { cosKey, generationMode } = await generateVideoForPanel(
     job,
     panel,
+    projectRepository,
     payload,
     modelId,
     projectModels.videoRatio,
@@ -200,12 +212,9 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
   )
 
   await assertTaskActive(job, 'persist_panel_video')
-  await prisma.novelPromotionPanel.update({
-    where: { id: panel.id },
-    data: {
-      videoUrl: cosKey,
-      videoGenerationMode: generationMode,
-    },
+  await projectRepository.updatePanelVideo(panel.id, {
+    videoUrl: cosKey,
+    generationMode,
   })
 
   return {
@@ -214,15 +223,17 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
   }
 }
 
-async function handleLipSyncTask(job: Job<TaskJobData>) {
+async function handleLipSyncTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const lipSyncModel = typeof payload.lipSyncModel === 'string' && payload.lipSyncModel.trim()
     ? payload.lipSyncModel.trim()
     : undefined
 
-  let panel: PanelRecord | null = null
+  let panel: WorkerPanelRecord | null = null
   if (job.data.targetType === 'NovelPromotionPanel') {
-    panel = await prisma.novelPromotionPanel.findUnique({ where: { id: job.data.targetId } })
+    panel = await projectRepository.getPanelById(job.data.targetId)
   }
 
   if (
@@ -231,7 +242,11 @@ async function handleLipSyncTask(job: Job<TaskJobData>) {
     payload.storyboardId &&
     payload.panelIndex !== undefined
   ) {
-    panel = await fetchPanelByStoryboardIndex(payload.storyboardId, Number(payload.panelIndex))
+    panel = await fetchPanelByStoryboardIndex(
+      projectRepository,
+      payload.storyboardId,
+      Number(payload.panelIndex),
+    )
   }
 
   if (!panel) throw new Error('Lip-sync panel not found')
@@ -240,7 +255,7 @@ async function handleLipSyncTask(job: Job<TaskJobData>) {
   const voiceLineId = typeof payload.voiceLineId === 'string' ? payload.voiceLineId : null
   if (!voiceLineId) throw new Error('Lip-sync task missing voiceLineId')
 
-  const voiceLine = await prisma.novelPromotionVoiceLine.findUnique({ where: { id: voiceLineId } })
+  const voiceLine = await projectRepository.getVoiceLineById(voiceLineId)
   if (!voiceLine || !voiceLine.audioUrl) {
     throw new Error('Voice line or audioUrl not found')
   }
@@ -268,13 +283,7 @@ async function handleLipSyncTask(job: Job<TaskJobData>) {
   const cosKey = await uploadVideoSourceToCos(source, 'lip-sync', panel.id)
 
   await assertTaskActive(job, 'persist_lip_sync_video')
-  await prisma.novelPromotionPanel.update({
-    where: { id: panel.id },
-    data: {
-      lipSyncVideoUrl: cosKey,
-      lipSyncTaskId: null,
-    },
-  })
+  await projectRepository.updatePanelLipSyncVideo(panel.id, cosKey)
 
   return {
     panelId: panel.id,
@@ -283,7 +292,7 @@ async function handleLipSyncTask(job: Job<TaskJobData>) {
   }
 }
 
-async function processVideoTask(job: Job<TaskJobData>) {
+export async function processVideoTask(job: WorkerTaskJob) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
@@ -296,21 +305,35 @@ async function processVideoTask(job: Job<TaskJobData>) {
   }
 }
 
-export function createVideoWorker() {
+export async function runVideoTaskJob(job: WorkerTaskJob) {
+  const workflowConcurrency = await getUserWorkflowConcurrencyConfig(job.data.userId)
+  return await withTaskLifecycle(job, async (taskJob) => {
+    return await withUserConcurrencyGate({
+      scope: 'video',
+      userId: taskJob.data.userId,
+      limit: workflowConcurrency.video,
+      run: async () => await processVideoTask(taskJob),
+    })
+  })
+}
+
+export async function createVideoWorker(): Promise<Worker<TaskJobData>> {
+  const [{ Worker }, { queueConnection }] = await Promise.all([
+    import('bullmq'),
+    import('../redis'),
+  ])
+
   return new Worker<TaskJobData>(
     QUEUE_NAME.VIDEO,
-    async (job) => await withTaskLifecycle(job, async (taskJob) => {
-      const workflowConcurrency = await getUserWorkflowConcurrencyConfig(taskJob.data.userId)
-      return await withUserConcurrencyGate({
-        scope: 'video',
-        userId: taskJob.data.userId,
-        limit: workflowConcurrency.video,
-        run: async () => await processVideoTask(taskJob),
-      })
-    }),
+    async (job) => await runVideoTaskJob(job),
     {
       connection: queueConnection,
       concurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY_VIDEO || '4', 10) || 4,
     },
   )
 }
+
+
+
+
+

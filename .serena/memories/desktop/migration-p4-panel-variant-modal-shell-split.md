@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 PanelVariantModal.tsx。更新 PanelVariantModal.types.ts，把 modal 自身、头部和滚动内容区的 props 契约统一收口到类型文件；新增 PanelVariantModalHeader.tsx，承接标题和关闭动作区；新增 PanelVariantModalContent.tsx，承接分镜信息、推荐列表和自定义选项三段滚动内容。这样 PanelVariantModal.tsx 现在主要负责状态 hook、portal 和 header/content/footer 三段分发。desktop:build:web 已通过。

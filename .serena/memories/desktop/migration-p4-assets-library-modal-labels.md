@@ -1,0 +1,1 @@
+2026-03-25：继续推进 renderer/novel-promotion 的资产库主链。WorkspaceAssetLibraryModal 已新增 WorkspaceAssetLibraryModalLabels，标题改成由 NovelPromotionWorkspace 根容器使用 vm.i18n.t('buttons.assetLibrary') 组装后注入。结合前一轮 assets 主链收口，当前正在运行的资产库/资产管理入口已基本统一为根容器注入显式 labels；剩余 AddLocationModal.tsx 与 AssetLibrary.tsx 更像未接入当前主链的残留候选。

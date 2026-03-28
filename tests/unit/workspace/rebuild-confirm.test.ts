@@ -32,7 +32,7 @@ vi.mock('react', async () => {
 import {
   hasDownstreamStoryboardData,
   useRebuildConfirm,
-} from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/hooks/useRebuildConfirm'
+} from '@renderer/modules/project-detail/novel-promotion/hooks/useRebuildConfirm'
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -123,3 +123,4 @@ describe('hasDownstreamStoryboardData', () => {
     expect(hasDownstreamStoryboardData({ storyboardCount: 0, panelCount: 2 })).toBe(true)
   })
 })
+

@@ -1,5 +1,5 @@
-import type { Job } from 'bullmq'
-import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
+import type { WorkerTaskJob } from '@engine/runtime-context'
+import { TASK_TYPE } from '@/lib/task/types'
 import {
   handleModifyAppearanceTask,
   handleModifyLocationTask,
@@ -8,7 +8,7 @@ import {
 } from './shot-ai-prompt'
 import { handleAnalyzeShotVariantsTask } from './shot-ai-variants'
 
-export async function handleShotAITask(job: Job<TaskJobData>) {
+export async function handleShotAITask(job: WorkerTaskJob) {
   const payload = (job.data.payload || {}) as AnyObj
   switch (job.data.type) {
     case TASK_TYPE.AI_MODIFY_APPEARANCE:
@@ -23,3 +23,6 @@ export async function handleShotAITask(job: Job<TaskJobData>) {
       throw new Error(`Unsupported shot AI task type: ${job.data.type}`)
   }
 }
+
+
+

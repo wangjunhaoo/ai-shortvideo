@@ -1,0 +1,1 @@
+2026-03-23：继续收 CandidateSelector。新增 hooks/useCandidateSelectorSectionProps.ts，把 CandidateSelector 的容器 class、header、thumbnailStrip、footer 四段 props 聚合从 runtime 中抽出。useCandidateSelectorRuntime.ts 现在返回 sections，CandidateSelector.tsx 改成统一的 sections 分发结构，和 storyboard 其他壳层保持一致。

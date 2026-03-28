@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 useAIDataModalRuntime.ts。新增 hooks/useAIDataModalFormPaneLabels.ts，把 basic/photography/acting 三组 labels 组装从 runtime 主 hook 中抽成独立 hook；useAIDataModalRuntime.ts 现在更聚焦状态同步、preview 生成和 header/form/preview/footer 四段 props 装配。desktop:build:web 已通过。

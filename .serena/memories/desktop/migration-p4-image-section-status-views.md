@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 ImageSectionStatusContent.tsx。新增 ImageSectionStatusContent.types.ts、ImageSectionLoadingState.tsx、ImageSectionFailedState.tsx、ImageSectionEmptyState.tsx，把图片区加载中、失败、空态三种状态渲染拆成独立视图组件。这样 ImageSectionStatusContent.tsx 现在主要负责状态视图分发，不再自己承载整段状态页 JSX。desktop:build:web 已通过。

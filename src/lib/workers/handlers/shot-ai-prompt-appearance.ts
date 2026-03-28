@@ -1,19 +1,29 @@
-import type { Job } from 'bullmq'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { removeCharacterPromptSuffix } from '@/lib/constants'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import type { TaskJobData } from '@/lib/task/types'
 import { resolveAnalysisModel } from './shot-ai-persist'
 import { runShotPromptCompletion } from './shot-ai-prompt-runtime'
 import { parseJsonObject, readRequiredString, type AnyObj } from './shot-ai-prompt-utils'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 
-export async function handleModifyAppearanceTask(job: Job<TaskJobData>, payload: AnyObj) {
+export async function handleModifyAppearanceTask(job: WorkerTaskJob, payload: AnyObj) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const characterId = readRequiredString(payload.characterId, 'characterId')
   const appearanceId = readRequiredString(payload.appearanceId, 'appearanceId')
   const currentDescription = readRequiredString(payload.currentDescription, 'currentDescription')
   const modifyInstruction = readRequiredString(payload.modifyInstruction, 'modifyInstruction')
-  const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
+  const novelData = await resolveAnalysisModel({
+    projectId: job.data.projectId,
+    userId: job.data.userId,
+    projectRepository,
+    userPreferenceRepository,
+  })
 
   const finalPrompt = buildPrompt({
     promptId: PROMPT_IDS.NP_CHARACTER_MODIFY,
@@ -59,3 +69,7 @@ export async function handleModifyAppearanceTask(job: Job<TaskJobData>, payload:
     rawResponse: responseText,
   }
 }
+
+
+
+

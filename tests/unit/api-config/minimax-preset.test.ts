@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PRESET_MODELS, PRESET_PROVIDERS } from '@/app/[locale]/profile/components/api-config/types'
+import { PRESET_MODELS, PRESET_PROVIDERS } from '@renderer/modules/profile/components/api-config/types'
 
 describe('api-config minimax preset', () => {
   it('uses official minimax baseUrl in preset provider', () => {
@@ -20,3 +20,4 @@ describe('api-config minimax preset', () => {
     expect(minimaxLlmModelIds).toContain('MiniMax-M2')
   })
 })
+

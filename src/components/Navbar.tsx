@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { useSession } from 'next-auth/react'
+import { useRendererSession } from '@renderer/auth/client'
 import { useTranslations } from 'next-intl'
 import LanguageSwitcher from './LanguageSwitcher'
 import { AppIcon } from '@/components/ui/icons'
@@ -12,7 +12,7 @@ import { Link } from '@/i18n/navigation'
 
 
 export default function Navbar() {
-  const { data: session, status } = useSession()
+  const { data: session, status } = useRendererSession()
   const t = useTranslations('nav')
   const tc = useTranslations('common')
   const { currentVersion, update, shouldPulse, showModal, openModal, dismissCurrentUpdate, checkNow } = useGithubReleaseUpdate()

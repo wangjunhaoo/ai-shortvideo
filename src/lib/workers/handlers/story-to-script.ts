@@ -1,10 +1,9 @@
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import {
   getUserWorkflowConcurrencyConfig,
   resolveProjectModelCapabilityGenerationOptions,
-} from '@/lib/config-service'
+} from '@engine/config-service'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { logAIAnalysis } from '@/lib/logging/semantic'
 import { onProjectNameAvailable } from '@/lib/logging/file-writer'
@@ -17,7 +16,6 @@ import {
   type StoryToScriptOrchestratorResult,
 } from '@/lib/novel-promotion/story-to-script/orchestrator'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 import {
   asString,
   type AnyObj,
@@ -28,7 +26,7 @@ import {
   persistClips,
   resolveClipRecordId,
 } from './story-to-script-helpers'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { getPromptTemplate, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 import { createArtifact, listArtifacts } from '@/lib/run-runtime/service'
 import { assertWorkflowRunActive, withWorkflowRunLease } from '@/lib/run-runtime/workflow-lease'
@@ -44,11 +42,14 @@ function resolveRetryClipId(retryStepKey: string): string | null {
   return clipId || null
 }
 
-function buildWorkflowWorkerId(job: Job<TaskJobData>, label: string) {
+function buildWorkflowWorkerId(job: WorkerTaskJob, label: string) {
   return `${label}:${job.queueName}:${job.data.taskId}`
 }
 
-export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
+export async function handleStoryToScriptTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const episodeIdRaw = asString(payload.episodeId || job.data.episodeId || '')
@@ -67,14 +68,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
     throw new Error('episodeId is required')
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      name: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectSummary(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -85,25 +79,12 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
   // Register project name for per-project log file routing
   onProjectNameAvailable(projectId, project.name)
 
-  const novelData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-      locations: true,
-    },
-  })
+  const novelData = await projectRepository.getNovelProjectForAnalysis(projectId)
   if (!novelData) {
     throw new Error('Novel promotion data not found')
   }
 
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    select: {
-      id: true,
-      novelPromotionProjectId: true,
-      novelText: true,
-    },
-  })
+  const episode = await projectRepository.getEpisodeForClipBuild(episodeId)
   if (!episode || episode.novelPromotionProjectId !== novelData.id) {
     throw new Error('Episode not found')
   }
@@ -112,6 +93,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
     userId: job.data.userId,
     inputModel,
     projectAnalysisModel: novelData.analysisModel,
+    userPreferenceRepository,
   })
   const [llmCapabilityOptions, workflowConcurrency] = await Promise.all([
     resolveProjectModelCapabilityGenerationOptions({
@@ -341,34 +323,16 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
           },
         })
 
-        let clipRecord = await prisma.novelPromotionClip.findFirst({
-          where: {
-            episodeId,
-            startText: asString(retryClip.startText) || null,
-            endText: asString(retryClip.endText) || null,
-          },
-          select: { id: true },
+        const clipRecord = await projectRepository.findOrCreateClip({
+          episodeId,
+          startText: asString(retryClip.startText) || null,
+          endText: asString(retryClip.endText) || null,
+          summary: asString(retryClip.summary),
+          location: asString(retryClip.location) || null,
+          characters: retryClip.characters,
+          content: clipContent,
         })
-        if (!clipRecord) {
-          clipRecord = await prisma.novelPromotionClip.create({
-            data: {
-              episodeId,
-              startText: asString(retryClip.startText) || null,
-              endText: asString(retryClip.endText) || null,
-              summary: asString(retryClip.summary),
-              location: asString(retryClip.location) || null,
-              characters: Array.isArray(retryClip.characters) ? JSON.stringify(retryClip.characters) : null,
-              content: clipContent,
-            },
-            select: { id: true },
-          })
-        }
-        await prisma.novelPromotionClip.update({
-          where: { id: clipRecord.id },
-          data: {
-            screenplay: JSON.stringify(screenplay),
-          },
-        })
+        await projectRepository.updateClipScreenplay(clipRecord.id, screenplay)
 
         await reportTaskProgress(job, 96, {
           stage: 'story_to_script_persist_done',
@@ -483,10 +447,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
       })
       await assertRunActive('story_to_script_persist')
 
-      const episodeStillExists = await prisma.novelPromotionEpisode.findUnique({
-        where: { id: episodeId },
-        select: { id: true },
-      })
+      const episodeStillExists = await projectRepository.episodeExists(episodeId)
       if (!episodeStillExists) {
         throw new Error(`NOT_FOUND: Episode ${episodeId} was deleted while the task was running`)
       }
@@ -499,18 +460,21 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
       )
 
       const createdCharacters = await persistAnalyzedCharacters({
+        projectRepository,
         projectInternalId: novelData.id,
         existingNames: existingCharacterNames,
         analyzedCharacters: result.analyzedCharacters,
       })
 
       const createdLocations = await persistAnalyzedLocations({
+        projectRepository,
         projectInternalId: novelData.id,
         existingNames: existingLocationNames,
         analyzedLocations: result.analyzedLocations,
       })
 
       const createdClipRows = await persistClips({
+        projectRepository,
         episodeId,
         clipList: result.clipList,
       })
@@ -520,12 +484,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
         if (!screenplayResult.success || !screenplayResult.screenplay) continue
         const clipRecordId = resolveClipRecordId(clipIdMap, screenplayResult.clipId)
         if (!clipRecordId) continue
-        await prisma.novelPromotionClip.update({
-          where: { id: clipRecordId },
-          data: {
-            screenplay: JSON.stringify(screenplayResult.screenplay),
-          },
-        })
+        await projectRepository.updateClipScreenplay(clipRecordId, screenplayResult.screenplay)
       }
 
       await reportTaskProgress(job, 96, {
@@ -555,3 +514,8 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
   }
   return leaseResult.result
 }
+
+
+
+
+

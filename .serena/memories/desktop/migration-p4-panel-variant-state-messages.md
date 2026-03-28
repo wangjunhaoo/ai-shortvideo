@@ -1,0 +1,1 @@
+2026-03-24：继续上提 PanelVariantModal 的业务消息边界。为 PanelVariantModal.types.ts 新增 PanelVariantModalStateMessages，并在 PanelVariantModal.tsx 顶层统一组装 analyzeFailed、customVariantTitle、defaultShotType、defaultCameraMove 后传给 hooks/usePanelVariantModalState.ts。usePanelVariantModalState.ts 已移除 useTranslations('storyboard')，只保留状态机、自动分析和自定义变体提交流程。desktop:build:web 已通过。

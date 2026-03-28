@@ -10,8 +10,8 @@ import type {
     CapabilitySelections,
     CapabilityValue,
     ModelCapabilities,
-} from '@/lib/model-config-contract'
-import { filterNormalVideoModelOptions } from '@/lib/model-capabilities/video-model-options'
+} from '@core/model-config-contract'
+import { filterNormalVideoModelOptions } from '@core/model-capabilities/video-model-options'
 import { RatioSelector, StyleSelector } from './config-modal-selectors'
 import { ModelCapabilityDropdown } from './ModelCapabilityDropdown'
 import { AppIcon } from '@/components/ui/icons'
@@ -509,3 +509,5 @@ export function SettingsModal({
 
 export { SettingsModal as ConfigEditModal }
 export { WorldContextModal } from './WorldContextModal'
+
+

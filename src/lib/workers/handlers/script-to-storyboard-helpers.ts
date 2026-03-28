@@ -1,6 +1,7 @@
 import { safeParseJson, safeParseJsonArray } from '@/lib/json-repair'
-import { prisma } from '@/lib/prisma'
-import type { StoryboardPanel } from '@/lib/storyboard-phases'
+import type { StoryboardPanel } from '@core/storyboard-phases'
+import type { ProjectRepository } from '@engine/repositories/project-repository'
+import type { PersistedStoryboard } from '@engine/repositories/project-repository'
 
 export type JsonRecord = Record<string, unknown>
 
@@ -9,18 +10,7 @@ export type ClipPanelsResult = {
   clipIndex: number
   finalPanels: StoryboardPanel[]
 }
-
-export type PersistedStoryboard = {
-  storyboardId: string
-  clipId: string
-  panels: Array<{
-    id: string
-    panelIndex: number
-    description: string | null
-    srtSegment: string | null
-    characters: string | null
-  }>
-}
+export type { PersistedStoryboard } from '@engine/repositories/project-repository'
 
 export function parseEffort(value: unknown): 'minimal' | 'low' | 'medium' | 'high' | null {
   if (value === 'minimal' || value === 'low' || value === 'medium' || value === 'high') return value
@@ -91,68 +81,11 @@ export function buildStoryboardJson(storyboards: PersistedStoryboard[]) {
 }
 
 export async function persistStoryboardsAndPanels(params: {
+  projectRepository: ProjectRepository
   episodeId: string
   clipPanels: ClipPanelsResult[]
 }) {
-  const { episodeId, clipPanels } = params
-  return await prisma.$transaction(async (tx) => {
-    const persisted: PersistedStoryboard[] = []
-    for (const clipEntry of clipPanels) {
-      const storyboard = await tx.novelPromotionStoryboard.upsert({
-        where: { clipId: clipEntry.clipId },
-        create: {
-          clipId: clipEntry.clipId,
-          episodeId,
-          panelCount: clipEntry.finalPanels.length,
-        },
-        update: {
-          panelCount: clipEntry.finalPanels.length,
-          episodeId,
-          lastError: null,
-        },
-        select: { id: true, clipId: true },
-      })
-
-      await tx.novelPromotionPanel.deleteMany({
-        where: { storyboardId: storyboard.id },
-      })
-
-      const persistedPanels: PersistedStoryboard['panels'] = []
-      for (let i = 0; i < clipEntry.finalPanels.length; i += 1) {
-        const panel = clipEntry.finalPanels[i]
-        const created = await tx.novelPromotionPanel.create({
-          data: {
-            storyboardId: storyboard.id,
-            panelIndex: i,
-            panelNumber: panel.panel_number || i + 1,
-            shotType: panel.shot_type || '中景',
-            cameraMove: panel.camera_move || '固定',
-            description: panel.description || null,
-            videoPrompt: panel.video_prompt || null,
-            location: panel.location || null,
-            characters: panel.characters ? JSON.stringify(panel.characters) : null,
-            srtSegment: panel.source_text || null,
-            photographyRules: panel.photographyPlan ? JSON.stringify(panel.photographyPlan) : null,
-            actingNotes: panel.actingNotes ? JSON.stringify(panel.actingNotes) : null,
-            duration: panel.duration || null,
-          },
-          select: {
-            id: true,
-            panelIndex: true,
-            description: true,
-            srtSegment: true,
-            characters: true,
-          },
-        })
-        persistedPanels.push(created)
-      }
-
-      persisted.push({
-        storyboardId: storyboard.id,
-        clipId: storyboard.clipId,
-        panels: persistedPanels,
-      })
-    }
-    return persisted
-  }, { timeout: 30000 })
+  return await params.projectRepository.saveStoryboardsAndPanels(params.episodeId, params.clipPanels)
 }
+
+

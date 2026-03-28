@@ -5,27 +5,36 @@ import { createVideoWorker } from './video.worker'
 import { createVoiceWorker } from './voice.worker'
 import { createTextWorker } from './text.worker'
 
-const workers = [createImageWorker(), createVideoWorker(), createVoiceWorker(), createTextWorker()]
+let workers: Awaited<ReturnType<typeof createImageWorker>>[] = []
 
-_ulogInfo('[Workers] started:', workers.length)
+async function bootstrap() {
+  workers = await Promise.all([
+    createImageWorker(),
+    createVideoWorker(),
+    createVoiceWorker(),
+    createTextWorker(),
+  ])
 
-for (const worker of workers) {
-  worker.on('ready', () => {
-    _ulogInfo(`[Workers] ready: ${worker.name}`)
-  })
+  _ulogInfo('[Workers] started:', workers.length)
 
-  worker.on('error', (err) => {
-    _ulogError(`[Workers] error: ${worker.name}`, err.message)
-  })
-
-  worker.on('failed', (job, err) => {
-    _ulogError(`[Workers] job failed: ${worker.name}`, {
-      jobId: job?.id,
-      taskId: job?.data?.taskId,
-      taskType: job?.data?.type,
-      error: err.message,
+  for (const worker of workers) {
+    worker.on('ready', () => {
+      _ulogInfo(`[Workers] ready: ${worker.name}`)
     })
-  })
+
+    worker.on('error', (err) => {
+      _ulogError(`[Workers] error: ${worker.name}`, err.message)
+    })
+
+    worker.on('failed', (job, err) => {
+      _ulogError(`[Workers] job failed: ${worker.name}`, {
+        jobId: job?.id,
+        taskId: job?.data?.taskId,
+        taskType: job?.data?.type,
+        error: err.message,
+      })
+    })
+  }
 }
 
 async function shutdown(signal: string) {
@@ -36,3 +45,8 @@ async function shutdown(signal: string) {
 
 process.on('SIGINT', () => void shutdown('SIGINT'))
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
+
+void bootstrap().catch((error) => {
+  _ulogError('[Workers] bootstrap failed', error instanceof Error ? error.message : String(error))
+  process.exit(1)
+})

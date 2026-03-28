@@ -1,8 +1,9 @@
-import { type Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import {
+  createTaskExecutionContext,
+  type WorkerTaskJob,
+} from '@engine/runtime-context'
 import { addLocationPromptSuffix, getArtStylePrompt, isArtStyleValue, type ArtStyleValue } from '@/lib/constants'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
-import { type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '../shared'
 import {
   assertTaskActive,
@@ -23,41 +24,17 @@ function resolvePayloadArtStyle(payload: AnyObj): ArtStyleValue | undefined {
   return parsedArtStyle
 }
 
-interface LocationImageRecord {
-  id: string
-  locationId: string
-  description: string | null
-  imageIndex: number
-  location?: { name: string } | null
-}
-
-interface LocationWithImages {
-  id: string
-  name: string
-  images?: LocationImageRecord[]
-}
-
-interface LocationImageTaskDb {
-  locationImage: {
-    findUnique(args: Record<string, unknown>): Promise<LocationImageRecord | null>
-    update(args: Record<string, unknown>): Promise<unknown>
-  }
-  novelPromotionLocation: {
-    findUnique(args: Record<string, unknown>): Promise<LocationWithImages | null>
-    findMany(args: Record<string, unknown>): Promise<LocationWithImages[]>
-  }
-}
-
 function resolveRequestedLocationCount(payload: AnyObj): number | null {
   if (!Object.prototype.hasOwnProperty.call(payload, 'count')) return null
   return normalizeImageGenerationCount('location', payload.count)
 }
 
-export async function handleLocationImageTask(job: Job<TaskJobData>) {
+export async function handleLocationImageTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const userId = job.data.userId
-  const db = prisma as unknown as LocationImageTaskDb
   const models = await getProjectModels(projectId, userId)
   const modelId = models.locationModel
   if (!modelId) throw new Error('Location model not configured')
@@ -67,12 +44,9 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
   const artStyle = getArtStylePrompt(payloadArtStyle ?? models.artStyle, job.data.locale)
 
   // targetId may be locationId (group) or locationImageId (single)
-  const maybeLocationImage = await db.locationImage.findUnique({
-    where: { id: job.data.targetId },
-    include: { location: true },
-  })
+  const maybeLocationImage = await projectRepository.getLocationImageById(job.data.targetId)
 
-  let locationImages: LocationImageRecord[] = []
+  let locationImages: Array<NonNullable<Awaited<ReturnType<typeof projectRepository.getLocationImageById>>>> = []
   // 用于存储 locationId -> name 的映射，避免 images 子集缺少 location 关联
   const locationNameMap: Record<string, string> = {}
 
@@ -84,24 +58,21 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
     if (payload.imageIndex !== undefined) {
       locationImages = [maybeLocationImage]
     } else {
-      const location = await db.novelPromotionLocation.findUnique({
-        where: { id: maybeLocationImage.locationId },
-        include: { images: { orderBy: { imageIndex: 'asc' } } },
-      })
+      const location = await projectRepository.getLocationWithImages(maybeLocationImage.locationId)
       if (location?.name) {
         locationNameMap[maybeLocationImage.locationId] = location.name
       }
-      const orderedImages = location?.images || [maybeLocationImage]
+      const orderedImages = (location?.images || [maybeLocationImage]).map((image) => ({
+        ...image,
+        location: { name: location?.name || locationNameMap[image.locationId] || '场景' },
+      }))
       locationImages = requestedCount === null ? orderedImages : orderedImages.slice(0, requestedCount)
     }
   } else {
     const locationId = pickFirstString(payload.id, payload.locationId, job.data.targetId)
     if (!locationId) throw new Error('Location id missing')
 
-    const location = await db.novelPromotionLocation.findUnique({
-      where: { id: locationId },
-      include: { images: { orderBy: { imageIndex: 'asc' } } },
-    })
+    const location = await projectRepository.getLocationWithImages(locationId)
 
     if (!location || !location.images?.length) {
       throw new Error('Location images not found')
@@ -113,21 +84,10 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
     if (payload.imageIndex !== undefined) {
       const image = location.images.find((it) => it.imageIndex === Number(payload.imageIndex))
       if (!image) throw new Error(`Location image not found for imageIndex=${payload.imageIndex}`)
-      locationImages = [image]
+      locationImages = [{ ...image, location: { name: location.name } }]
     } else {
-      locationImages = requestedCount === null ? location.images : location.images.slice(0, requestedCount)
-    }
-  }
-
-  // 补充查询缺失的 location 名字（兜底）
-  const missingLocationIds = Array.from(new Set(locationImages.map((it) => it.locationId)))
-    .filter((id) => !locationNameMap[id])
-  if (missingLocationIds.length > 0) {
-    const extras = await db.novelPromotionLocation.findMany({
-      where: { id: { in: missingLocationIds } } as Record<string, unknown>,
-    })
-    for (const loc of extras) {
-      locationNameMap[loc.id] = loc.name
+      const images = requestedCount === null ? location.images : location.images.slice(0, requestedCount)
+      locationImages = images.map((image) => ({ ...image, location: { name: location.name } }))
     }
   }
 
@@ -160,9 +120,9 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
     })
 
     await assertTaskActive(job, 'persist_location_image')
-    await db.locationImage.update({
-      where: { id: item.id },
-      data: { imageUrl: cosKey },
+    await projectRepository.updateLocationImage({
+      imageId: item.id,
+      imageUrl: cosKey,
     })
   }
 
@@ -171,3 +131,6 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
     locationIds,
   }
 }
+
+
+

@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { DeleteObjectsResult, SignedUrlParams, StorageProvider, UploadObjectParams, UploadObjectResult } from '@/lib/storage/types'
-import { normalizeKey, toFetchableUrl } from '@/lib/storage/utils'
+import { normalizeKey, resolveUploadRoot, toFetchableUrl } from '@/lib/storage/utils'
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './data/uploads'
 
 function resolveUploadPath(key: string): string {
-  return path.join(process.cwd(), UPLOAD_DIR, normalizeKey(key))
+  return path.join(resolveUploadRoot(UPLOAD_DIR), normalizeKey(key))
 }
 
 export class LocalStorageProvider implements StorageProvider {

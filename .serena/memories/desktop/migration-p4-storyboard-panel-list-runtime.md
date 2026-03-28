@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 StoryboardPanelList.tsx。新增 hooks/useStoryboardPanelListRuntime.ts，把网格布局类名、面板项列表和单项公共桥接参数从主组件中抽出。这样 StoryboardPanelList.tsx 现在主要负责列表分发，不再自己承载 panelItems 构造和每个列表项的公共桥接参数组装。desktop:build:web 已通过。

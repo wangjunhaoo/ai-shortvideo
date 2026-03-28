@@ -1,0 +1,1 @@
+2026-03-24：继续瘦身 renderer storyboard 的 ImageEditModalBody.tsx。新增 hooks/useImageEditModalBodySectionProps.ts，把提示词区、已选素材区、参考图区三段 props 聚合从主组件中抽出。这样 ImageEditModalBody.tsx 现在主要负责三段分发，不再自己承载三段 bridge props 组装。desktop:build:web 已通过。

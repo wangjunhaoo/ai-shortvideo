@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
-import type { CapabilityValue } from '@/lib/model-config-contract'
+import type { CapabilityValue } from '@core/model-config-contract'
 import { AppIcon, RatioPreviewIcon } from '@/components/ui/icons'
 
 // ─── Types ────────────────────────────────────────────
@@ -451,3 +451,4 @@ export function ModelCapabilityDropdown({
         </div>
     )
 }
+

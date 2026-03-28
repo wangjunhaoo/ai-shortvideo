@@ -62,7 +62,7 @@ if (refetchIntervalMsHits.length > 0) {
 }
 
 const voiceStagePath =
-  'src/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/VoiceStage.tsx'
+  'packages/renderer/modules/project-detail/novel-promotion/components/VoiceStage.tsx'
 const voiceStageText = readFile(voiceStagePath)
 if (voiceStageText.includes('setInterval(')) {
   fail('VoiceStage must not use timer polling', [voiceStagePath])
@@ -70,8 +70,14 @@ if (voiceStageText.includes('setInterval(')) {
 
 const targetStateMapPath = 'src/lib/query/hooks/useTaskTargetStateMap.ts'
 const targetStateMapText = readFile(targetStateMapPath)
-if (!/refetchInterval:\s*false/.test(targetStateMapText)) {
-  fail('useTaskTargetStateMap must keep refetchInterval disabled', [targetStateMapPath])
+if (!/refetchInterval:\s*\(state\)\s*=>/.test(targetStateMapText)) {
+  fail('useTaskTargetStateMap must use query-driven conditional refetching', [targetStateMapPath])
+}
+if (!/item\.phase === 'queued' \|\| item\.phase === 'processing'/.test(targetStateMapText)) {
+  fail('useTaskTargetStateMap must only refetch while queued or processing', [targetStateMapPath])
+}
+if (!/\?\s*2000\s*:\s*false/.test(targetStateMapText)) {
+  fail('useTaskTargetStateMap must stop refetching outside active task phases', [targetStateMapPath])
 }
 
 const ssePath = 'src/lib/query/hooks/useSSE.ts'

@@ -1,0 +1,1 @@
+2026-03-23：继续收 StoryboardHeader。新增 hooks/useStoryboardHeaderSectionProps.ts，把 summary/actions 两段文案与 props 聚合从 StoryboardHeader.tsx 中抽出。同步更新 StoryboardHeader.types.ts、StoryboardHeaderSummary.tsx、StoryboardHeaderActions.tsx，把这条链的 t() 透传全部改成显式 label 契约。

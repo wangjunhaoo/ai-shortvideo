@@ -1,0 +1,1 @@
+2026-03-22：在完成图像链核心收口后，已执行 desktop:verify:local 与 desktop:verify:release 并通过。local 验证链确认登录、项目创建、项目列表、账单接口关闭正常；release 验证链完成 desktop:prepare、electron-builder 打包和 win-unpacked 冒烟，新的安装包 dist/desktop/waoowaoo-Setup-0.3.0.exe 可交付。当前仍存在一些既有 ESLint warning，以及 Next 构建期 bullmq child-processor 的 Critical dependency warning，但未阻断构建、打包和桌面冒烟。

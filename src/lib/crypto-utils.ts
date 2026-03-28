@@ -2,7 +2,7 @@ import { logError as _ulogError } from '@/lib/logging/core'
 /**
  * API Key 加密/解密工具
  * 
- * 使用 AES-256-GCM 算法，密钥从 NEXTAUTH_SECRET 派生
+ * 使用 AES-256-GCM 算法，密钥从 AUTH_SESSION_SECRET 派生
  * 确保用户在网页上输入的 API Key 在数据库中加密存储
  */
 
@@ -22,14 +22,14 @@ function isApiKeyObject(value: unknown): value is ApiKeyObject {
 /**
  * 从环境变量派生加密密钥
  * 优先使用 API_ENCRYPTION_KEY（开源版本固定值）
- * 后备使用 NEXTAUTH_SECRET
+ * 后备使用 AUTH_SESSION_SECRET
  */
 function deriveEncryptionKey(): Buffer {
     // 优先使用专用的加密密钥（开源版本建议使用固定值）
-    const secret = process.env.API_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET
+    const secret = process.env.API_ENCRYPTION_KEY || process.env.AUTH_SESSION_SECRET
 
     if (!secret) {
-        throw new Error('API_ENCRYPTION_KEY 或 NEXTAUTH_SECRET 未配置，无法加密 API Key')
+        throw new Error('API_ENCRYPTION_KEY 或 AUTH_SESSION_SECRET 未配置，无法加密 API Key')
     }
 
     // 使用 PBKDF2 派生 32 字节密钥

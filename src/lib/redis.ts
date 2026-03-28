@@ -1,5 +1,6 @@
 import type { ConnectionOptions } from 'bullmq'
 import { logDebug as _ulogDebug, logError as _ulogError } from '@/lib/logging/core'
+import { isDesktopLocalTasksEnabled, isWebBuildPhase } from '@/lib/runtime-mode'
 import Redis from 'ioredis'
 
 type RedisSingleton = {
@@ -17,19 +18,9 @@ const REDIS_USERNAME = process.env.REDIS_USERNAME
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD
 const REDIS_TLS = process.env.REDIS_TLS === 'true'
 const IS_TEST_ENV = process.env.NODE_ENV === 'test'
-const IS_BUILD_PHASE = (() => {
-  const phase = (process.env.NEXT_PHASE || '').trim().toLowerCase()
-  if (phase === 'phase-production-build') return true
-
-  const lifecycle = (process.env.npm_lifecycle_event || '').trim().toLowerCase()
-  if (lifecycle === 'build' || lifecycle === 'desktop:build:web') return true
-
-  const argv = process.argv.map((arg) => arg.toLowerCase())
-  const hasBuildArg = argv.includes('build')
-  const fromNextBin = argv.some((arg) => arg.includes('next/dist/bin/next') || arg.endsWith('/next') || arg.endsWith('\\next'))
-  return hasBuildArg && fromNextBin
-})()
-const SHOULD_LAZY_CONNECT = IS_TEST_ENV || IS_BUILD_PHASE
+const IS_DESKTOP_LOCAL_TASKS = isDesktopLocalTasksEnabled()
+const IS_BUILD_PHASE = isWebBuildPhase()
+const SHOULD_LAZY_CONNECT = IS_TEST_ENV || IS_BUILD_PHASE || IS_DESKTOP_LOCAL_TASKS
 
 function buildBaseConfig() {
   return {

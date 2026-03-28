@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getAssistantSavedModelLabel } from '@/app/[locale]/profile/components/api-config/provider-card/hooks/useProviderCardState'
+import { getAssistantSavedModelLabel } from '@renderer/modules/profile/components/api-config/provider-card/hooks/useProviderCardState'
 
 describe('provider card assistant saved label', () => {
   it('prefers draft model name when available', () => {
@@ -47,3 +47,4 @@ describe('provider card assistant saved label', () => {
     expect(label).toBe('veo_3_1-fast-4K')
   })
 })
+

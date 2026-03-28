@@ -1,5 +1,5 @@
-import { prisma } from '@/lib/prisma'
 import { safeParseJsonObject } from '@/lib/json-repair'
+import type { ProjectRepository } from '@engine/repositories/project-repository'
 
 export type AnyObj = Record<string, unknown>
 
@@ -19,21 +19,20 @@ export function parseVisualResponse(responseText: string): AnyObj {
   return safeParseJsonObject(responseText) as AnyObj
 }
 
-export async function resolveProjectModel(projectId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      novelPromotionData: {
-        select: {
-          id: true,
-          analysisModel: true,
-        },
-      },
-    },
-  })
+export async function resolveProjectModel(
+  projectRepository: Pick<ProjectRepository, 'getProjectAnalysisContext'>,
+  projectId: string,
+): Promise<{
+  id: string
+  novelPromotionProjectId: string
+  analysisModel: string
+}> {
+  const project = await projectRepository.getProjectAnalysisContext(projectId)
   if (!project) throw new Error('Project not found')
-  if (!project.novelPromotionData) throw new Error('Novel promotion data not found')
-  if (!project.novelPromotionData.analysisModel) throw new Error('请先在项目设置中配置分析模型')
-  return project
+  if (!project.analysisModel) throw new Error('请先在项目设置中配置分析模型')
+  return {
+    ...project,
+    analysisModel: project.analysisModel,
+  }
 }
+

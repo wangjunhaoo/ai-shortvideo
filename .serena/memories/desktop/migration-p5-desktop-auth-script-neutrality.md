@@ -1,0 +1,1 @@
+2026-03-27：scripts/desktop 下的 smoke/verify 脚本已完成认证中性化。登录统一改走 /api/auth/login?json=true，会话仍走 /api/auth/session 与 /api/auth/csrf；运行环境变量统一改成 APP_BASE_URL / AUTH_SESSION_SECRET，已清掉 NEXTAUTH_URL / NEXTAUTH_SECRET / nextAuthSecret。新增 scripts/guards/desktop-auth-neutrality-guard.mjs 并接入 package.json/test:guards，用于阻止桌面验证链回流到 next-auth callback 路径和旧环境变量命名。

@@ -8,7 +8,7 @@ const root = process.cwd()
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
 
 const lineScanRoots = [
-  'src/app/[locale]/workspace/[projectId]/modes/novel-promotion',
+  'packages/renderer/modules/project-detail/novel-promotion',
   'src/lib/query/hooks',
 ]
 

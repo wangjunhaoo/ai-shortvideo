@@ -1,3 +1,3 @@
 'use client'
 
-export { default, type VideoPanelCardShellProps } from './VideoPanelCardLayout'
+export * from '@renderer/modules/project-detail/novel-promotion/components/video/panel-card/VideoPanelCardShell'

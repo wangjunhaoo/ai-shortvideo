@@ -1,0 +1,1 @@
+2026-03-27：新增 desktop/runtime/prisma-runtime-support.cjs 与 desktop/runtime/http-runtime-support.cjs。next-runtime-adapter.cjs 已只保留 Next-specific 依赖校验、启动参数和健康路径；Prisma generate/db push 与 @prisma/client smoke test 迁到 prisma-runtime-support，Node HTTP 启动与健康检查迁到 http-runtime-support。后续本地 engine adapter 可直接复用 managed-web-runtime + http-runtime-support，并按需选择是否复用 Prisma 支撑。

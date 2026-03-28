@@ -1,14 +1,12 @@
-import type { Job } from 'bullmq'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { safeParseJsonObject } from '@/lib/json-repair'
-import { prisma } from '@/lib/prisma'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { getArtStylePrompt, removeLocationPromptSuffix } from '@/lib/constants'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
 function readText(value: unknown): string {
@@ -36,17 +34,14 @@ function parseJsonResponse(responseText: string): Record<string, unknown> {
   return safeParseJsonObject(responseText)
 }
 
-export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
+export async function handleAnalyzeNovelTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as Record<string, unknown>
   const projectId = job.data.projectId
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectMode(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -54,13 +49,7 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     throw new Error('Not a novel promotion project')
   }
 
-  const novelData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-      locations: true,
-    },
-  })
+  const novelData = await projectRepository.getNovelProjectForAnalysis(projectId)
   if (!novelData) {
     throw new Error('Novel promotion data not found')
   }
@@ -68,17 +57,12 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     userId: job.data.userId,
     inputModel: payload.model,
     projectAnalysisModel: novelData.analysisModel,
+    userPreferenceRepository,
   })
 
-  const firstEpisode = await prisma.novelPromotionEpisode.findFirst({
-    where: { novelPromotionProjectId: novelData.id },
-    orderBy: { createdAt: 'asc' },
-    select: {
-      novelText: true,
-    },
-  })
+  const firstEpisodeText = await projectRepository.findFirstEpisodeNovelText(novelData.id)
 
-  let contentToAnalyze = readText(novelData.globalAssetText) || readText(firstEpisode?.novelText)
+  let contentToAnalyze = readText(novelData.globalAssetText) || readText(firstEpisodeText)
   if (!contentToAnalyze.trim()) {
     throw new Error('请先填写全局资产设定或剧本内容')
   }
@@ -225,15 +209,12 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
       age_range: item.age_range,
     }
 
-    const created = await prisma.novelPromotionCharacter.create({
-      data: {
-        novelPromotionProjectId: novelData.id,
-        name,
-        aliases: JSON.stringify(toStringArray(item.aliases)),
-        profileData: JSON.stringify(profileData),
-        profileConfirmed: false,
-      },
-      select: { id: true },
+    const created = await projectRepository.createNovelCharacter({
+      novelPromotionProjectId: novelData.id,
+      name,
+      aliases: toStringArray(item.aliases),
+      profileData,
+      profileConfirmed: false,
     })
     createdCharacters.push(created)
   }
@@ -259,35 +240,28 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     )
     if (existsInLibrary) continue
 
-    const created = await prisma.novelPromotionLocation.create({
-      data: {
-        novelPromotionProjectId: novelData.id,
-        name,
-        summary: readText(item.summary) || null,
-      },
-      select: { id: true },
+    const created = await projectRepository.createNovelLocation({
+      novelPromotionProjectId: novelData.id,
+      name,
+      summary: readText(item.summary) || null,
     })
 
     const cleanDescriptions = descriptions.map((value) => removeLocationPromptSuffix(value || ''))
     for (let i = 0; i < cleanDescriptions.length; i += 1) {
-      await prisma.locationImage.create({
-        data: {
-          locationId: created.id,
-          imageIndex: i,
-          description: cleanDescriptions[i],
-        },
+      await projectRepository.createLocationImage({
+        locationId: created.id,
+        imageIndex: i,
+        description: cleanDescriptions[i],
       })
     }
 
     createdLocations.push(created)
   }
 
-  await prisma.novelPromotionProject.update({
-    where: { id: novelData.id },
-    data: {
-      artStylePrompt: getArtStylePrompt(novelData.artStyle, job.data.locale) || '',
-    },
-  })
+  await projectRepository.updateNovelProjectArtStylePrompt(
+    novelData.id,
+    getArtStylePrompt(novelData.artStyle, job.data.locale) || '',
+  )
 
   await reportTaskProgress(job, 96, {
     stage: 'analyze_novel_done',
@@ -303,3 +277,7 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     locationCount: createdLocations.length,
   }
 }
+
+
+
+

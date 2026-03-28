@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 AIDataModalActingSection.tsx。新增 AIDataModalActingHeader.tsx，把表演说明区标题壳从主组件中抽出；新增 AIDataModalActingCharacterCard.tsx，把单个角色的表演说明编辑卡片从主组件中抽出。这样 AIDataModalActingSection.tsx 现在主要负责空态判定、标题分发和角色卡片列表渲染。desktop:build:web 已通过。

@@ -1,0 +1,1 @@
+2026-03-26：renderer HTTP 传输层已收敛到单一入口 packages/renderer/clients/http-client.ts。packages/renderer/clients/* 统一通过 rendererApiRequest 访问网络，并从 packages/shared/contracts/renderer-api-routes.ts 读取路由 contract。renderer-http-transport-guard 与 renderer-client-route-contract-guard 已接入 package.json/test:guards，用于阻止 packages/renderer 重新直连 @/lib/api-fetch 或在 clients 内硬编码 /api/*。

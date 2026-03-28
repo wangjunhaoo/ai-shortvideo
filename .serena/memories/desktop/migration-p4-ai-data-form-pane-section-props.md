@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 AIDataModalFormPane.tsx。新增 hooks/useAIDataModalFormPaneSectionProps.ts，把 basic/photography/acting 三段 section props 聚合从 form pane 主组件中抽出；同步更新 AIDataModalFormPane.types.ts、hooks/useAIDataModalRuntime.ts 和三段 section/子组件，把这条链的最外层 t() 透传改成显式 labels 契约。AIDataModalFormPane.tsx 现在主要负责三段子视图分发。desktop:build:web 已通过。

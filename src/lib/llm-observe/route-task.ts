@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { getRequestId } from '@/lib/api-errors'
 import { submitTask } from '@/lib/task/submitter'
 import { TASK_TYPE, type TaskType } from '@/lib/task/types'
@@ -8,7 +7,7 @@ import type { LLMObserveDisplayMode } from './config'
 import { getLLMTaskPolicy } from './task-policy'
 import { getTaskFlowMeta } from './stage-pipeline'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
-import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
+import { getProjectModelConfig, getUserModelConfig } from '@engine/config-service'
 
 export function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -40,23 +39,23 @@ export function resolvePositiveInteger(value: unknown, fallback: number): number
   return fallback
 }
 
-export function shouldRunSyncTask(request: NextRequest, body?: unknown) {
+export function shouldRunSyncTask(request: Request, body?: unknown) {
   if (request.headers.get('x-internal-task-id')) return true
   const payload = toObject(body)
   if (parseSyncFlag(payload.sync)) return true
-  if (parseSyncFlag(request.nextUrl.searchParams.get('sync'))) return true
+  if (parseSyncFlag(new URL(request.url).searchParams.get('sync'))) return true
   return false
 }
 
-function shouldRunAsyncTask(request: NextRequest, body?: unknown) {
+function shouldRunAsyncTask(request: Request, body?: unknown) {
   const payload = toObject(body)
   if (parseSyncFlag(payload.async)) return true
-  if (parseSyncFlag(request.nextUrl.searchParams.get('async'))) return true
+  if (parseSyncFlag(new URL(request.url).searchParams.get('async'))) return true
   return false
 }
 
 export async function maybeSubmitLLMTask(params: {
-  request: NextRequest
+  request: Request
   userId: string
   projectId: string
   episodeId?: string | null
@@ -152,5 +151,7 @@ export async function maybeSubmitLLMTask(params: {
     billingInfo,
   })
 
-  return NextResponse.json(taskResult)
+  return Response.json(taskResult)
 }
+
+

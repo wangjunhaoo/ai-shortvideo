@@ -3,11 +3,11 @@ import {
   getAddableModelTypesForProvider,
   getVisibleModelTypesForProvider,
   shouldShowOpenAICompatVideoHint,
-} from '@/app/[locale]/profile/components/api-config/provider-card/ProviderAdvancedFields'
+} from '@renderer/modules/profile/components/api-config/provider-card/ProviderAdvancedFields'
 import {
   buildCustomPricingFromModelForm,
   buildProviderConnectionPayload,
-} from '@/app/[locale]/profile/components/api-config/provider-card/hooks/useProviderCardState'
+} from '@renderer/modules/profile/components/api-config/provider-card/hooks/useProviderCardState'
 
 describe('provider card pricing form behavior', () => {
   it('allows openai-compatible provider to add llm/image/video', () => {
@@ -171,3 +171,4 @@ describe('provider card pricing form behavior', () => {
     })
   })
 })
+

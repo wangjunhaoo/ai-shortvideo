@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardStageModals.tsx。新增 StoryboardStageModals.types.ts，统一收口主弹窗组、资产选择器组和外层分发契约；新增 StoryboardStagePrimaryModals.tsx，承接图片编辑弹窗、AI 数据弹窗和图片预览弹窗桥接；新增 StoryboardStageAssetPickers.tsx，承接角色选择器和场景选择器桥接。这样 StoryboardStageModals.tsx 现在主要负责主弹窗组和资产选择器组两段分发，不再直接承载五段 modal JSX。desktop:build:web 已通过。

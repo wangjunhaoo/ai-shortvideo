@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { createScopedLogger } from '@/lib/logging/core'
+import { isDesktopLocalTasksEnabled } from '@/lib/runtime-mode'
 import { TASK_STATUS, TASK_EVENT_TYPE } from './types'
 import { publishTaskEvent } from './publisher'
 import { rollbackTaskBillingForTask } from './service'
@@ -45,7 +46,12 @@ type JobState = 'alive' | 'terminal' | 'missing'
  * - missing:  Job 在所有队列中均不存在
  */
 async function getJobState(taskId: string): Promise<JobState> {
-    for (const queue of getAllTaskQueues()) {
+    if (isDesktopLocalTasksEnabled()) {
+        const { isLocalTaskJobAlive } = await import('./local-executor')
+        return await isLocalTaskJobAlive(taskId) ? 'alive' : 'missing'
+    }
+
+    for (const queue of await getAllTaskQueues()) {
         try {
             const job = await queue.getJob(taskId)
             if (!job) continue
@@ -210,6 +216,15 @@ let watchdogTimer: ReturnType<typeof setInterval> | null = null
  *   2. reconcileActiveTasks — DB active 但 BullMQ 已死的任务 → failed
  */
 export function startTaskWatchdog() {
+    if (isDesktopLocalTasksEnabled()) {
+        const logger = createScopedLogger({ module: 'task.watchdog' })
+        logger.info({
+            action: 'watchdog.skip',
+            message: 'desktop 本地任务模式下跳过 BullMQ watchdog',
+        })
+        return
+    }
+
     if (watchdogTimer) return
 
     const logger = createScopedLogger({ module: 'task.watchdog' })

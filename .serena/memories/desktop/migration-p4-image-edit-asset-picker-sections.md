@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 ImageEditModalAssetPicker.tsx。新增 ImageEditModalCharacterSection.tsx，把角色资产网格、形象多版本展示、选择/取消选择、预览图片逻辑从资产选择器主体中抽出；新增 ImageEditModalLocationSection.tsx，把场景资产网格、已选图片解析、选择/取消选择、预览图片逻辑从资产选择器主体中抽出。这样 ImageEditModalAssetPicker.tsx 现在主要负责弹窗壳、标题区、确认按钮和角色/场景区块分发。desktop:build:web 已通过。

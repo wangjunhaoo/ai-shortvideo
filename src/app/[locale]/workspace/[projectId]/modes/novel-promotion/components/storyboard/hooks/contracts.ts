@@ -1,8 +1,1 @@
-import type { PanelEditData } from '../../PanelEditForm'
-import type { StoryboardPanel } from './useStoryboardState'
-
-export interface StoryboardPanelUpdateContract {
-  panelId: string
-  panel: StoryboardPanel
-  updates: Partial<PanelEditData>
-}
+export * from '@renderer/modules/project-detail/novel-promotion/components/storyboard/hooks/contracts'

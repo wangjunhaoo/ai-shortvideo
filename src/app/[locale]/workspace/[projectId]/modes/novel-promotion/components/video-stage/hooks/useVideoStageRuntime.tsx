@@ -1,6 +1,3 @@
 'use client'
 
-export {
-  useVideoStageRuntime,
-  type VideoStageShellProps,
-} from '@/lib/novel-promotion/stages/video-stage-runtime-core'
+export * from '@renderer/modules/project-detail/novel-promotion/components/video-stage/hooks/useVideoStageRuntime'

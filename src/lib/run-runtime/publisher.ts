@@ -1,4 +1,5 @@
-import { redis } from '@/lib/redis'
+import { publishRuntimeChannelMessage } from '@/lib/runtime-event-bus'
+import { shouldUseInMemoryRuntimeBus } from '@/lib/runtime-mode'
 import { appendRunEventWithSeq } from './service'
 import type { RunEventInput } from './types'
 
@@ -24,7 +25,13 @@ export async function publishRunEvent(input: RunEventInput) {
     payload: event.payload || null,
     ts: event.createdAt,
   }
-  await redis.publish(getProjectRunChannel(event.projectId), JSON.stringify(message))
+  const serializedMessage = JSON.stringify(message)
+  if (shouldUseInMemoryRuntimeBus()) {
+    await publishRuntimeChannelMessage(getProjectRunChannel(event.projectId), serializedMessage)
+  } else {
+    const { redis } = await import('../redis')
+    await redis.publish(getProjectRunChannel(event.projectId), serializedMessage)
+  }
   return message
 }
 

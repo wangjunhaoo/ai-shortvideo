@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardCanvas.tsx。新增 StoryboardCanvasLabels，把空态标题、空态描述和插入分镜组文案提升为显式 labels 契约；同步更新 hooks/useStoryboardStageSectionProps.ts、hooks/useStoryboardCanvasItemRuntime.ts 和 StoryboardCanvas.tsx，清掉 StoryboardCanvas 及 StoryboardCanvasItemRuntime 里的本地 useTranslations('storyboard') 依赖。desktop:build:web 已通过。

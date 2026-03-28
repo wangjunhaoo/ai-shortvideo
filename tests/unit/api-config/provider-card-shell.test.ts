@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getCompatibilityLayerBadgeLabel } from '@/app/[locale]/profile/components/api-config/provider-card/ProviderCardShell'
+import { getCompatibilityLayerBadgeLabel } from '@renderer/modules/profile/components/api-config/provider-card/ProviderCardShell'
 
 describe('provider card shell compatibility layer badge', () => {
   const t = (key: string): string => {
@@ -23,3 +23,4 @@ describe('provider card shell compatibility layer badge', () => {
     expect(getCompatibilityLayerBadgeLabel('siliconflow', t)).toBeNull()
   })
 })
+

@@ -1,0 +1,1 @@
+2026-03-23：继续瘦身 renderer storyboard 的 StoryboardGroup.tsx。新增 hooks/useStoryboardGroupSectionProps.ts，把 StoryboardGroupChrome、StoryboardPanelList、StoryboardGroupDialogs 三段的 props 汇总从主组件中抽出。这样 StoryboardGroup.tsx 现在主要负责运行时 hook 调用、分段 props hook 装配和三块子区的分发，不再直接承载大段 props 桥接细节；插入分镜禁用规则、面板列表桥接、弹窗桥接与顶部 chrome 桥接都已经集中到 section-props hook 内。desktop:build:web 已通过。

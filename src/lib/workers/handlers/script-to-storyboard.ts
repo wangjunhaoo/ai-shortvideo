@@ -1,10 +1,9 @@
-import type { Job } from 'bullmq'
-import { prisma } from '@/lib/prisma'
+import { createTaskExecutionContext, type WorkerTaskJob } from '@engine/runtime-context'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import {
   getUserWorkflowConcurrencyConfig,
   resolveProjectModelCapabilityGenerationOptions,
-} from '@/lib/config-service'
+} from '@engine/config-service'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { logAIAnalysis } from '@/lib/logging/semantic'
 import { onProjectNameAvailable } from '@/lib/logging/file-writer'
@@ -19,7 +18,6 @@ import {
   type ScriptToStoryboardOrchestratorResult,
 } from '@/lib/novel-promotion/script-to-storyboard/orchestrator'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import type { TaskJobData } from '@/lib/task/types'
 import {
   asJsonRecord,
   buildStoryboardJson,
@@ -30,7 +28,7 @@ import {
   toPositiveInt,
   type JsonRecord,
 } from './script-to-storyboard-helpers'
-import { buildPrompt, getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, getPromptTemplate, PROMPT_IDS } from '@core/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 import { createArtifact } from '@/lib/run-runtime/service'
 import { assertWorkflowRunActive, withWorkflowRunLease } from '@/lib/run-runtime/workflow-lease'
@@ -42,7 +40,7 @@ import {
 type AnyObj = Record<string, unknown>
 const MAX_VOICE_ANALYZE_ATTEMPTS = 2
 
-function buildWorkflowWorkerId(job: Job<TaskJobData>, label: string) {
+function buildWorkflowWorkerId(job: WorkerTaskJob, label: string) {
   return `${label}:${job.queueName}:${job.data.taskId}`
 }
 
@@ -50,7 +48,10 @@ function isReasoningEffort(value: unknown): value is 'minimal' | 'low' | 'medium
   return value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
 }
 
-export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
+export async function handleScriptToStoryboardTask(job: WorkerTaskJob) {
+  const context = createTaskExecutionContext(job)
+  const projectRepository = context.repositories.project
+  const userPreferenceRepository = context.repositories.userPreference
   const payload = (job.data.payload || {}) as AnyObj
   const projectId = job.data.projectId
   const episodeIdRaw = typeof payload.episodeId === 'string' ? payload.episodeId : (job.data.episodeId || '')
@@ -68,14 +69,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     throw new Error('episodeId is required')
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      name: true,
-      mode: true,
-    },
-  })
+  const project = await projectRepository.getProjectSummary(projectId)
   if (!project) {
     throw new Error('Project not found')
   }
@@ -86,23 +80,12 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
   // Register project name for per-project log file routing
   onProjectNameAvailable(projectId, project.name)
 
-  const novelData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      characters: true,
-      locations: true,
-    },
-  })
+  const novelData = await projectRepository.getNovelProjectForAnalysis(projectId)
   if (!novelData) {
     throw new Error('Novel promotion data not found')
   }
 
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    include: {
-      clips: { orderBy: { createdAt: 'asc' } },
-    },
-  })
+  const episode = await projectRepository.getEpisodeWithClips(episodeId)
   if (!episode || episode.novelPromotionProjectId !== novelData.id) {
     throw new Error('Episode not found')
   }
@@ -127,6 +110,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     userId: job.data.userId,
     inputModel,
     projectAnalysisModel: novelData.analysisModel,
+    userPreferenceRepository,
   })
   const [llmCapabilityOptions, workflowConcurrency] = await Promise.all([
     resolveProjectModelCapabilityGenerationOptions({
@@ -416,6 +400,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       await assertRunActive('script_to_storyboard_persist')
 
       const persistedStoryboards = await persistStoryboardsAndPanels({
+        projectRepository,
         episodeId,
         clipPanels: orchestratorResult.clipPanels,
       })
@@ -526,114 +511,57 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
         }
       }
 
-      const createdVoiceLines = await prisma.$transaction(async (tx) => {
-        const voiceLineModel = tx.novelPromotionVoiceLine as unknown as {
-          upsert?: (args: unknown) => Promise<{ id: string }>
-          create: (args: unknown) => Promise<{ id: string }>
-          deleteMany: (args: unknown) => Promise<unknown>
-        }
-        const created: Array<{ id: string }> = []
-        for (let i = 0; i < voiceLineRows.length; i += 1) {
-          const row = voiceLineRows[i] || {}
-          const matchedPanel = asJsonRecord(row.matchedPanel)
-          const matchedStoryboardId =
-            matchedPanel && typeof matchedPanel.storyboardId === 'string'
-              ? matchedPanel.storyboardId.trim()
-              : null
-          const matchedPanelIndex = matchedPanel ? toPositiveInt(matchedPanel.panelIndex) : null
-          let matchedPanelId: string | null = null
-          if (matchedPanel !== null) {
-            if (!matchedStoryboardId || matchedPanelIndex === null) {
-              throw new Error(`voice line ${i + 1} has invalid matchedPanel reference`)
-            }
-            const panelKey = `${matchedStoryboardId}:${matchedPanelIndex}`
-            const resolvedPanelId = panelIdByStoryboardPanel.get(panelKey)
-            if (!resolvedPanelId) {
-              throw new Error(`voice line ${i + 1} references non-existent panel ${panelKey}`)
-            }
-            matchedPanelId = resolvedPanelId
+      const normalizedVoiceLines = voiceLineRows.map((row, index) => {
+        const matchedPanel = asJsonRecord(row.matchedPanel)
+        const matchedStoryboardId =
+          matchedPanel && typeof matchedPanel.storyboardId === 'string'
+            ? matchedPanel.storyboardId.trim()
+            : null
+        const matchedPanelIndex = matchedPanel ? toPositiveInt(matchedPanel.panelIndex) : null
+        let matchedPanelId: string | null = null
+        if (matchedPanel !== null) {
+          if (!matchedStoryboardId || matchedPanelIndex === null) {
+            throw new Error(`voice line ${index + 1} has invalid matchedPanel reference`)
           }
-
-          if (typeof row.emotionStrength !== 'number' || !Number.isFinite(row.emotionStrength)) {
-            throw new Error(`voice line ${i + 1} is missing valid emotionStrength`)
+          const panelKey = `${matchedStoryboardId}:${matchedPanelIndex}`
+          const resolvedPanelId = panelIdByStoryboardPanel.get(panelKey)
+          if (!resolvedPanelId) {
+            throw new Error(`voice line ${index + 1} references non-existent panel ${panelKey}`)
           }
-          const emotionStrength = Math.min(1, Math.max(0.1, row.emotionStrength))
-
-          if (typeof row.lineIndex !== 'number' || !Number.isFinite(row.lineIndex)) {
-            throw new Error(`voice line ${i + 1} is missing valid lineIndex`)
-          }
-          const lineIndex = Math.floor(row.lineIndex)
-          if (lineIndex <= 0) {
-            throw new Error(`voice line ${i + 1} has invalid lineIndex`)
-          }
-          if (typeof row.speaker !== 'string' || !row.speaker.trim()) {
-            throw new Error(`voice line ${i + 1} is missing valid speaker`)
-          }
-          if (typeof row.content !== 'string' || !row.content.trim()) {
-            throw new Error(`voice line ${i + 1} is missing valid content`)
-          }
-
-          const upsertArgs = {
-            where: {
-              episodeId_lineIndex: {
-                episodeId,
-                lineIndex,
-              },
-            },
-            create: {
-              episodeId,
-              lineIndex,
-              speaker: row.speaker.trim(),
-              content: row.content,
-              emotionStrength,
-              matchedPanelId,
-              matchedStoryboardId: matchedPanelId ? matchedStoryboardId : null,
-              matchedPanelIndex,
-            },
-            update: {
-              speaker: row.speaker.trim(),
-              content: row.content,
-              emotionStrength,
-              matchedPanelId,
-              matchedStoryboardId: matchedPanelId ? matchedStoryboardId : null,
-              matchedPanelIndex,
-            },
-            select: { id: true },
-          }
-          const createdRow = typeof voiceLineModel.upsert === 'function'
-            ? await voiceLineModel.upsert(upsertArgs)
-            : (
-              process.env.NODE_ENV === 'test'
-                ? await voiceLineModel.create({
-                  data: upsertArgs.create,
-                  select: { id: true },
-                })
-                : (() => { throw new Error('novelPromotionVoiceLine.upsert unavailable') })()
-            )
-          created.push(createdRow)
+          matchedPanelId = resolvedPanelId
         }
 
-        const nextLineIndexes = voiceLineRows
-          .map((row) => (typeof row.lineIndex === 'number' && Number.isFinite(row.lineIndex) ? Math.floor(row.lineIndex) : -1))
-          .filter((value) => value > 0)
-        if (nextLineIndexes.length === 0) {
-          await voiceLineModel.deleteMany({
-            where: {
-              episodeId,
-            },
-          })
-        } else {
-          await voiceLineModel.deleteMany({
-            where: {
-              episodeId,
-              lineIndex: {
-                notIn: nextLineIndexes,
-              },
-            },
-          })
+        if (typeof row.emotionStrength !== 'number' || !Number.isFinite(row.emotionStrength)) {
+          throw new Error(`voice line ${index + 1} is missing valid emotionStrength`)
         }
-        return created
-      }, { timeout: 15000 })
+        const emotionStrength = Math.min(1, Math.max(0.1, row.emotionStrength))
+
+        if (typeof row.lineIndex !== 'number' || !Number.isFinite(row.lineIndex)) {
+          throw new Error(`voice line ${index + 1} is missing valid lineIndex`)
+        }
+        const lineIndex = Math.floor(row.lineIndex)
+        if (lineIndex <= 0) {
+          throw new Error(`voice line ${index + 1} has invalid lineIndex`)
+        }
+        if (typeof row.speaker !== 'string' || !row.speaker.trim()) {
+          throw new Error(`voice line ${index + 1} is missing valid speaker`)
+        }
+        if (typeof row.content !== 'string' || !row.content.trim()) {
+          throw new Error(`voice line ${index + 1} is missing valid content`)
+        }
+
+        return {
+          lineIndex,
+          speaker: row.speaker.trim(),
+          content: row.content,
+          emotionStrength,
+          matchedPanelId,
+          matchedStoryboardId: matchedPanelId ? matchedStoryboardId : null,
+          matchedPanelIndex,
+        }
+      })
+
+      const createdVoiceLines = await projectRepository.saveVoiceLinesForEpisode(episodeId, normalizedVoiceLines)
 
       await reportTaskProgress(job, 96, {
         stage: 'script_to_storyboard_persist_done',
@@ -660,3 +588,8 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
 
   return leaseResult.result
 }
+
+
+
+
+

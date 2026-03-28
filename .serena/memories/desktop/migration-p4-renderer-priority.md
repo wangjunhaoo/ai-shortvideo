@@ -1,0 +1,1 @@
+当前 renderer 迁移优先级：1）profile/components 与 workspace 的页面内部交互模块；2）asset-hub 页面内局部组件与状态逻辑；3）project-detail 页内的 episode/stage/导入向导逻辑；4）最后再考虑把数据查询 hooks 从 src/lib/query 逐步抽出 renderer 适配层。

@@ -1,9 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { NextResponse } from 'next/server'
 import { logError as _ulogError } from '@/lib/logging/core'
 import { getLogContext } from '@/lib/logging/context'
 import { prisma } from '@/lib/prisma'
-import { parseModelKeyStrict } from '@/lib/model-config-contract'
+import { parseModelKeyStrict } from '@core/model-config-contract'
 import {
   calcImage,
   calcLipSync,
@@ -31,7 +30,7 @@ import type {
   BillingRecordParams,
   TaskBillingInfo,
 } from './types'
-import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
+import { BUILTIN_PRICING_VERSION } from '@core/model-pricing/version'
 
 type CostInput = {
   apiType: ApiType
@@ -764,9 +763,9 @@ export async function withLipSyncBilling<T>(
   )
 }
 
-export function handleBillingError(error: unknown): NextResponse | null {
+export function handleBillingError(error: unknown): Response | null {
   if (error instanceof InsufficientBalanceError) {
-    return NextResponse.json(
+    return Response.json(
       {
         error: error.message,
         code: 'INSUFFICIENT_BALANCE',
@@ -1065,3 +1064,5 @@ export async function rollbackTaskBilling(task: {
     } satisfies TaskBillingInfo
   }
 }
+
+

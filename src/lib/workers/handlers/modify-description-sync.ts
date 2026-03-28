@@ -1,8 +1,8 @@
 import { executeAiTextStep, executeAiVisionStep } from '@/lib/ai-runtime'
 import { removeCharacterPromptSuffix, removeLocationPromptSuffix } from '@/lib/constants'
 import { safeParseJsonObject } from '@/lib/json-repair'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
-import type { PromptLocale } from '@/lib/prompt-i18n/types'
+import { buildPrompt, PROMPT_IDS } from '@core/prompt-i18n'
+import type { PromptLocale } from '@core/prompt-i18n/types'
 import {
   buildCharacterDescriptionFields,
   readIndexedDescription,
@@ -98,3 +98,4 @@ export async function generateModifiedAssetDescription(params: {
   })
   return parseModifiedDescription(completion.text)
 }
+

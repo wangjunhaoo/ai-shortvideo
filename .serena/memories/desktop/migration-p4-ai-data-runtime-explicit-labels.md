@@ -1,0 +1,1 @@
+2026-03-25：继续上提 storyboard 的 AIDataModal runtime 翻译边界。AIDataModal.tsx 现在统一组装 formPaneLabels 与 viewLabels；hooks/useAIDataModalRuntime.ts 改成只接收显式 formPaneLabels 与 viewLabels，不再直接依赖翻译函数；hooks/useAIDataModalViewProps.ts 改成只接收 labels，负责 header/form/preview/footer 四段视图 props 的组装。desktop:build:web 已通过。
