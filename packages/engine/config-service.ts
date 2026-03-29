@@ -16,6 +16,11 @@ import {
 import { findBuiltinCapabilities } from '@core/model-capabilities/catalog'
 import { resolveGenerationOptionsForModel } from '@core/model-capabilities/lookup'
 import {
+  normalizeCapabilitySelectionsForModelKey,
+  normalizeRuntimeCapabilitySelections,
+  normalizeRuntimeModelKey,
+} from '@core/model-runtime-aliases'
+import {
   type WorkflowConcurrencyConfig,
   normalizeWorkflowConcurrencyConfig,
 } from '@core/workflow-concurrency'
@@ -195,19 +200,36 @@ export function resolveModelCapabilityGenerationOptions(input: {
   capabilityOverrides?: CapabilitySelections
   runtimeSelections?: Record<string, CapabilityValue>
 }): Record<string, CapabilityValue> {
-  const parsed = parseModelKeyStrict(input.modelKey)
+  const normalizedModelKey = normalizeRuntimeModelKey(input.modelKey) || input.modelKey
+  const parsed = parseModelKeyStrict(normalizedModelKey)
   if (!parsed) {
-    throw new Error(`MODEL_KEY_INVALID: ${input.modelKey}`)
+    throw new Error(`MODEL_KEY_INVALID: ${normalizedModelKey}`)
   }
 
   const capabilities = findBuiltinCapabilities(input.modelType, parsed.provider, parsed.modelId)
+  const normalizedRuntimeSelections = normalizeRuntimeCapabilitySelections({
+    modelType: input.modelType,
+    provider: parsed.provider,
+    modelId: parsed.modelId,
+    selections: input.runtimeSelections,
+  })
+  const normalizedCapabilityDefaults = normalizeCapabilitySelectionsForModelKey({
+    selections: input.capabilityDefaults,
+    modelType: input.modelType,
+    modelKey: normalizedModelKey,
+  })
+  const normalizedCapabilityOverrides = normalizeCapabilitySelectionsForModelKey({
+    selections: input.capabilityOverrides,
+    modelType: input.modelType,
+    modelKey: normalizedModelKey,
+  })
   const resolved = resolveGenerationOptionsForModel({
     modelType: input.modelType,
-    modelKey: input.modelKey,
+    modelKey: normalizedModelKey,
     capabilities,
-    capabilityDefaults: input.capabilityDefaults,
-    capabilityOverrides: input.capabilityOverrides,
-    runtimeSelections: input.runtimeSelections,
+    capabilityDefaults: normalizedCapabilityDefaults,
+    capabilityOverrides: normalizedCapabilityOverrides,
+    runtimeSelections: normalizedRuntimeSelections,
     requireAllFields: input.modelType !== 'llm',
   })
 
@@ -216,7 +238,12 @@ export function resolveModelCapabilityGenerationOptions(input: {
     throw new Error(`${first.code}: ${first.field} ${first.message}`)
   }
 
-  return resolved.options
+  return normalizeRuntimeCapabilitySelections({
+    modelType: input.modelType,
+    provider: parsed.provider,
+    modelId: parsed.modelId,
+    selections: resolved.options,
+  })
 }
 
 export async function resolveProjectModelCapabilityGenerationOptions(input: {

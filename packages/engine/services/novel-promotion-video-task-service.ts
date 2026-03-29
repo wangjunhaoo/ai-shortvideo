@@ -3,9 +3,11 @@ import { ApiError } from '@/lib/api-errors'
 import { buildDefaultTaskBillingInfo } from '@/lib/billing'
 import { BillingOperationError } from '@/lib/billing/errors'
 import { hasPanelVideoOutput } from '@/lib/task/has-output'
+import { resolveBatchTaskSubmitConcurrency } from '@/lib/task/submit-concurrency'
 import { submitTask } from '@/lib/task/submitter'
 import { TASK_TYPE } from '@/lib/task/types'
 import { withTaskUiPayload } from '@/lib/task/ui-payload'
+import { mapWithConcurrency } from '@/lib/async/map-with-concurrency'
 import { parseModelKeyStrict, type CapabilityValue } from '@core/model-config-contract'
 import { resolveBuiltinCapabilitiesByModelKey } from '@core/model-capabilities/lookup'
 import { resolveBuiltinPricing } from '@core/model-pricing/lookup'
@@ -80,18 +82,18 @@ function validateFirstLastFrameModel(input: unknown) {
   }
 }
 
-async function validateVideoCapabilityCombination(input: {
+async function resolveValidatedVideoTaskPayload(input: {
   payload: unknown
   projectId: string
   userId: string
-}) {
+}): Promise<Record<string, unknown>> {
   const payload = input.payload
-  if (!isRecord(payload)) return
+  if (!isRecord(payload)) return {}
   const modelKey = resolveVideoModelKeyFromPayload(payload)
-  if (!modelKey) return
+  if (!modelKey) return payload
 
   const builtinCaps = resolveBuiltinCapabilitiesByModelKey('video', modelKey)
-  if (!builtinCaps) return
+  if (!builtinCaps) return payload
 
   const runtimeSelections = toVideoRuntimeSelections(payload.generationOptions)
   runtimeSelections.generationMode = resolveVideoGenerationMode(payload)
@@ -133,6 +135,11 @@ async function validateVideoCapabilityCombination(input: {
       },
     })
   }
+
+  return {
+    ...payload,
+    generationOptions: resolvedOptions,
+  }
 }
 
 function buildVideoPanelBillingInfoOrThrow(payload: unknown) {
@@ -165,11 +172,11 @@ export async function submitNovelPromotionGenerateVideoTask(input: {
   locale: Locale
   body: unknown
 }) {
-  const body = isRecord(input.body) ? input.body : {}
-  requireVideoModelKeyFromPayload(body)
-  validateFirstLastFrameModel(body.firstLastFrame)
-  await validateVideoCapabilityCombination({
-    payload: body,
+  const rawBody = isRecord(input.body) ? input.body : {}
+  requireVideoModelKeyFromPayload(rawBody)
+  validateFirstLastFrameModel(rawBody.firstLastFrame)
+  const body = await resolveValidatedVideoTaskPayload({
+    payload: rawBody,
     projectId: input.projectId,
     userId: input.userId,
   })
@@ -197,8 +204,10 @@ export async function submitNovelPromotionGenerateVideoTask(input: {
       return { tasks: [], total: 0 }
     }
 
-    const tasks = await Promise.all(
-      panels.map(async (panel) =>
+    const tasks = await mapWithConcurrency(
+      panels,
+      resolveBatchTaskSubmitConcurrency(),
+      async (panel) =>
         submitTask({
           userId: input.userId,
           locale: input.locale,
@@ -214,7 +223,6 @@ export async function submitNovelPromotionGenerateVideoTask(input: {
           dedupeKey: `video_panel:${panel.id}`,
           billingInfo: buildVideoPanelBillingInfoOrThrow(body),
         }),
-      ),
     )
 
     return {

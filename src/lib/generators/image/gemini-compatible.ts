@@ -2,6 +2,7 @@ import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai'
 import { getProviderConfig } from '@/lib/api-config'
 import { getInternalBaseUrl } from '@/lib/env'
 import { getImageBase64Cached } from '@/lib/image-cache'
+import { normalizeRuntimeImageOptions } from '@core/model-runtime-aliases'
 import { BaseImageGenerator, type GenerateResult, type ImageGenerateParams } from '../base'
 import { setProxy } from '../../../../lib/prompts/proxy'
 
@@ -88,7 +89,13 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
       apiKey: providerConfig.apiKey,
       httpOptions: { baseUrl: providerConfig.baseUrl },
     })
-    const normalizedOptions = options as GeminiCompatibleOptions
+    const normalizedOptions = normalizeRuntimeImageOptions(
+      providerId,
+      this.modelId || (typeof (options as GeminiCompatibleOptions).modelId === 'string'
+        ? (options as GeminiCompatibleOptions).modelId
+        : null),
+      options as GeminiCompatibleOptions,
+    )
     const parts: GeminiCompatibleContentPart[] = []
 
     for (const referenceImage of referenceImages.slice(0, 14)) {

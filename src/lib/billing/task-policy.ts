@@ -8,6 +8,8 @@ import {
 } from './cost'
 import { BillingOperationError } from './errors'
 import { BUILTIN_PRICING_VERSION } from '@core/model-pricing/version'
+import { parseModelKeyStrict } from '@core/model-config-contract'
+import { findBuiltinCapabilities } from '@core/model-capabilities/catalog'
 import { TASK_TYPE, type TaskType } from '@/lib/task/types'
 import type { TaskBillingInfo } from './types'
 
@@ -81,6 +83,13 @@ function pickFirstString(values: unknown[]): string | null {
     if (next) return next
   }
   return null
+}
+
+function supportsVideoGenerationMode(model: string): boolean {
+  const parsed = parseModelKeyStrict(model)
+  if (!parsed) return true
+  const capabilities = findBuiltinCapabilities('video', parsed.provider, parsed.modelId)
+  return Array.isArray(capabilities?.video?.generationModeOptions) && capabilities.video.generationModeOptions.length > 0
 }
 
 function buildTextTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillingInfo | null {
@@ -166,7 +175,7 @@ function buildVideoTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillin
   const metadata = {
     ...(resolution ? { resolution } : {}),
     ...(typeof duration === 'number' ? { duration } : {}),
-    generationMode,
+    ...(supportsVideoGenerationMode(model) ? { generationMode } : {}),
     ...(typeof generateAudio === 'boolean' ? { generateAudio } : {}),
   }
   let maxFrozenCost = 0

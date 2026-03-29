@@ -50,7 +50,11 @@ function appendProcessLog(logFilePath, source, chunk) {
 function joinWindowsPathForPrisma(filePath) {
   // Prisma SQLite 在 Windows 下使用 file:///C:/... 可能触发路径解析异常，统一为 file:C:/...
   const normalized = path.resolve(filePath).replace(/\\/g, '/')
-  return `file:${normalized}`
+  const query = new URLSearchParams({
+    connection_limit: '1',
+    socket_timeout: '30',
+  })
+  return `file:${normalized}?${query.toString()}`
 }
 
 function buildEnvFileContent(env) {

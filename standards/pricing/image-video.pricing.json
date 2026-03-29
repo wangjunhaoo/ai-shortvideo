@@ -451,12 +451,6 @@
       "tiers": [
         {
           "when": {
-            "resolution": "0.5K"
-          },
-          "amount": 0.324
-        },
-        {
-          "when": {
             "resolution": "1K"
           },
           "amount": 0.4824

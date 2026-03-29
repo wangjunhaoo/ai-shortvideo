@@ -303,12 +303,27 @@ type MysqlIndexRow = {
   Column_name: string
 }
 
+type SqliteIndexListRow = {
+  name: string
+  unique: number | string
+}
+
+type SqliteIndexInfoRow = {
+  seqno: number | string
+  name: string
+}
+
 const REQUIRED_GRAPH_ARTIFACT_UNIQUE_COLUMNS = ['runId', 'stepKey', 'artifactType', 'refId'] as const
 let graphArtifactUniqueIndexCheck: Promise<void> | null = null
 
 function toIndexNumber(value: number | string) {
   if (typeof value === 'number') return value
   return Number.parseInt(value, 10)
+}
+
+function isSqliteRuntimeDatabase() {
+  const databaseUrl = (process.env.DATABASE_URL || '').trim().toLowerCase()
+  return databaseUrl.startsWith('file:') || databaseUrl.startsWith('sqlite:')
 }
 
 function hasRequiredGraphArtifactUniqueIndex(rows: MysqlIndexRow[]) {
@@ -340,6 +355,32 @@ function hasRequiredGraphArtifactUniqueIndex(rows: MysqlIndexRow[]) {
   return false
 }
 
+async function hasRequiredSqliteGraphArtifactUniqueIndex() {
+  const indexList = await prisma.$queryRawUnsafe<SqliteIndexListRow[]>("PRAGMA index_list('graph_artifacts')")
+
+  for (const index of indexList) {
+    if (toIndexNumber(index.unique) !== 1) continue
+    const safeIndexName = index.name.replace(/'/g, "''")
+    const columns = await prisma.$queryRawUnsafe<SqliteIndexInfoRow[]>(`PRAGMA index_info('${safeIndexName}')`)
+    const sortedColumns = columns
+      .map((column) => ({
+        seq: toIndexNumber(column.seqno),
+        name: column.name,
+      }))
+      .filter((column) => Number.isFinite(column.seq))
+      .sort((left, right) => left.seq - right.seq)
+      .map((column) => column.name)
+
+    if (sortedColumns.length !== REQUIRED_GRAPH_ARTIFACT_UNIQUE_COLUMNS.length) continue
+    const match = sortedColumns.every(
+      (column, indexPosition) => column === REQUIRED_GRAPH_ARTIFACT_UNIQUE_COLUMNS[indexPosition],
+    )
+    if (match) return true
+  }
+
+  return false
+}
+
 async function ensureGraphArtifactUniqueIndex() {
   if (process.env.NODE_ENV === 'test') return
   if (graphArtifactUniqueIndexCheck) {
@@ -348,8 +389,13 @@ async function ensureGraphArtifactUniqueIndex() {
   }
 
   graphArtifactUniqueIndexCheck = (async () => {
-    const rows = await prisma.$queryRawUnsafe<MysqlIndexRow[]>('SHOW INDEX FROM graph_artifacts')
-    if (!hasRequiredGraphArtifactUniqueIndex(rows)) {
+    const hasRequiredIndex = isSqliteRuntimeDatabase()
+      ? await hasRequiredSqliteGraphArtifactUniqueIndex()
+      : hasRequiredGraphArtifactUniqueIndex(
+        await prisma.$queryRawUnsafe<MysqlIndexRow[]>('SHOW INDEX FROM graph_artifacts'),
+      )
+
+    if (!hasRequiredIndex) {
       throw new Error(
         'missing required unique index on graph_artifacts(runId, stepKey, artifactType, refId); run migration before starting runtime',
       )

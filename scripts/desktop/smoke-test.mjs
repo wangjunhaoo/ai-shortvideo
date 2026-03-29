@@ -122,6 +122,40 @@ async function verifyLandingPage(baseUrl, locale) {
   if (!html.includes(`<html lang="${locale}">`)) {
     throw new Error(`访问 /${locale} 失败：页面缺少 <html lang=\"${locale}\"> 标记`)
   }
+
+  return html
+}
+
+function extractCriticalChunkPaths(html) {
+  return Array.from(
+    new Set(
+      Array.from(
+        html.matchAll(/\/_next\/static\/chunks\/app\/%5Blocale%5D\/[^"'\\s>]+\.js/g),
+        (match) => match[0],
+      ),
+    ),
+  )
+}
+
+async function verifyCriticalClientChunks(baseUrl, html) {
+  const chunkPaths = extractCriticalChunkPaths(html)
+  if (chunkPaths.length === 0) {
+    throw new Error('页面直出校验失败：未找到 [locale] app chunk，无法验证客户端资源加载')
+  }
+
+  for (const chunkPath of chunkPaths) {
+    const response = await fetch(`${baseUrl}${chunkPath}`, {
+      redirect: 'manual',
+    })
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(`客户端 chunk 加载失败：${chunkPath} => HTTP ${response.status}\n${body}`)
+    }
+    if (!contentType.toLowerCase().includes('javascript')) {
+      throw new Error(`客户端 chunk 返回类型异常：${chunkPath} => ${contentType || 'unknown'}`)
+    }
+  }
 }
 
 async function ensureJsonResponse(response, label) {
@@ -307,7 +341,10 @@ async function main() {
     console.log(`[desktop-smoke] 服务已启动: ${bootId}`)
 
     console.log(`[desktop-smoke] 校验页面直出: /${options.locale}`)
-    await verifyLandingPage(options.baseUrl, options.locale)
+    const landingHtml = await verifyLandingPage(options.baseUrl, options.locale)
+
+    console.log('[desktop-smoke] 校验关键客户端 chunk')
+    await verifyCriticalClientChunks(options.baseUrl, landingHtml)
 
     console.log(`[desktop-smoke] 注册测试用户: ${username}`)
     await registerUser(options.baseUrl, username, password)

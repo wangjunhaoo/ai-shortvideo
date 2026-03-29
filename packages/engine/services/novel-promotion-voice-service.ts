@@ -6,9 +6,11 @@ import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import { resolveMediaRef, resolveMediaRefFromLegacyValue, resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { generateUniqueKey, getSignedUrl, uploadObject } from '@/lib/storage'
 import { hasPanelLipSyncOutput, hasVoiceLineAudioOutput } from '@/lib/task/has-output'
+import { resolveBatchTaskSubmitConcurrency } from '@/lib/task/submit-concurrency'
 import { submitTask } from '@/lib/task/submitter'
 import { TASK_TYPE } from '@/lib/task/types'
 import { withTaskUiPayload } from '@/lib/task/ui-payload'
+import { mapWithConcurrency } from '@/lib/async/map-with-concurrency'
 import { estimateVoiceLineMaxSeconds } from '@/lib/voice/generate-voice-line'
 import { getProviderKey, resolveModelSelectionOrSingle } from '@/lib/api-config'
 import type { Locale } from '@/i18n/routing'
@@ -905,8 +907,10 @@ export async function submitNovelPromotionVoiceGenerateTask(input: {
     })
   }
 
-  const results = await Promise.all(
-    voiceLines.map(async (line) => {
+  const results = await mapWithConcurrency(
+    voiceLines,
+    resolveBatchTaskSubmitConcurrency(),
+    async (line) => {
       const payload = {
         episodeId,
         lineId: line.id,
@@ -933,7 +937,7 @@ export async function submitNovelPromotionVoiceGenerateTask(input: {
         lineId: line.id,
         taskId: result.taskId,
       }
-    }),
+    },
   )
 
   if (all) {

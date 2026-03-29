@@ -7,17 +7,21 @@ export async function registerUser(input: {
   name: string
   password: string
 }) {
-  const name = input.name || 'unknown'
-  const password = input.password
+  const name = typeof input.name === 'string' ? input.name.trim() : ''
+  const password = typeof input.password === 'string' ? input.password : ''
 
   if (!name || !password) {
     logAuthAction('REGISTER', name, { error: 'Missing credentials' })
-    throw new ApiError('INVALID_PARAMS')
+    throw new ApiError('INVALID_PARAMS', {
+      message: !name ? '请输入用户名' : '请输入密码',
+    })
   }
 
   if (password.length < 6) {
     logAuthAction('REGISTER', name, { error: 'Password too short' })
-    throw new ApiError('INVALID_PARAMS')
+    throw new ApiError('INVALID_PARAMS', {
+      message: '密码至少需要 6 位',
+    })
   }
 
   const existingUser = await prisma.user.findUnique({
@@ -25,8 +29,10 @@ export async function registerUser(input: {
   })
 
   if (existingUser) {
-    logAuthAction('REGISTER', name, { error: 'Phone number already exists' })
-    throw new ApiError('INVALID_PARAMS')
+    logAuthAction('REGISTER', name, { error: 'Username already exists' })
+    throw new ApiError('INVALID_PARAMS', {
+      message: '用户名已存在，请直接登录',
+    })
   }
 
   const hashedPassword = await bcrypt.hash(password, 12)

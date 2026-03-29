@@ -11,6 +11,7 @@
 
 import { GoogleGenAI } from '@google/genai'
 import { getInternalBaseUrl } from '@/lib/env'
+import { normalizeRuntimeImageOptions } from '@core/model-runtime-aliases'
 import { getImageBase64Cached } from './image-cache'
 import { logInternal } from './logging/semantic'
 
@@ -116,12 +117,16 @@ export async function submitGeminiBatch(
 
     // 构建内嵌请求（Inline Requests）
     // 🔥 添加 imageConfig 以控制输出图片的比例和尺寸
+    const normalizedOptions = normalizeRuntimeImageOptions('google', 'gemini-3-pro-image-preview', {
+      aspectRatio: options?.aspectRatio,
+      resolution: options?.resolution,
+    })
     const imageConfig: UnknownRecord = {}
-    if (options?.aspectRatio) {
-      imageConfig.aspectRatio = options.aspectRatio
+    if (normalizedOptions.aspectRatio) {
+      imageConfig.aspectRatio = normalizedOptions.aspectRatio
     }
-    if (options?.resolution) {
-      imageConfig.imageSize = options.resolution  // 'HD', '4K' 等
+    if (normalizedOptions.resolution) {
+      imageConfig.imageSize = normalizedOptions.resolution
     }
 
     const inlinedRequests = [

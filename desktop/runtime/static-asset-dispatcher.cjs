@@ -25,7 +25,14 @@ const MIME_TYPES = {
 }
 
 function resolveSafeFile(rootDir, relativePath) {
-  const normalized = relativePath.replace(/^\/+/, '')
+  let decodedPath = relativePath
+  try {
+    decodedPath = decodeURIComponent(relativePath)
+  } catch {
+    decodedPath = relativePath
+  }
+
+  const normalized = decodedPath.replace(/^\/+/, '')
   const resolvedRoot = path.resolve(rootDir)
   const resolvedPath = path.resolve(resolvedRoot, normalized)
   if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {

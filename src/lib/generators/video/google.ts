@@ -5,6 +5,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { BaseVideoGenerator, VideoGenerateParams, GenerateResult } from '../base'
 import { getProviderConfig } from '@/lib/api-config'
+import { normalizeRuntimeVideoOptions } from '@core/model-runtime-aliases'
 import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 
 interface GoogleVeoOptions {
@@ -12,6 +13,7 @@ interface GoogleVeoOptions {
     aspectRatio?: string
     resolution?: string
     duration?: number
+    generationMode?: 'normal' | 'firstlastframe'
     lastFrameImageUrl?: string
 }
 
@@ -52,13 +54,16 @@ export class GoogleVeoVideoGenerator extends BaseVideoGenerator {
         const { apiKey } = await getProviderConfig(userId, this.providerId)
         const ai = new GoogleGenAI({ apiKey })
 
+        const rawOptions = options as GoogleVeoOptions
+        const normalizedOptions = normalizeRuntimeVideoOptions(this.providerId, rawOptions.modelId || 'veo-3.1-generate-preview', rawOptions)
         const {
             modelId = 'veo-3.1-generate-preview',
             aspectRatio,
             resolution,
             duration,
+            generationMode,
             lastFrameImageUrl,
-        } = options as GoogleVeoOptions
+        } = normalizedOptions
 
         const allowedOptionKeys = new Set([
             'provider',
@@ -67,6 +72,7 @@ export class GoogleVeoVideoGenerator extends BaseVideoGenerator {
             'aspectRatio',
             'resolution',
             'duration',
+            'generationMode',
             'lastFrameImageUrl',
         ])
         for (const [key, value] of Object.entries(options)) {
@@ -111,6 +117,10 @@ export class GoogleVeoVideoGenerator extends BaseVideoGenerator {
                 throw new Error('Veo lastFrame image is invalid')
             }
             config.lastFrame = inlineData
+        }
+
+        if (generationMode === 'firstlastframe' && !lastFrameImageUrl) {
+            throw new Error('Veo firstlastframe mode requires lastFrameImageUrl')
         }
 
         if (Object.keys(config).length > 0) {

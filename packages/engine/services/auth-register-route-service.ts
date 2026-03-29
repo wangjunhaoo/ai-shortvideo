@@ -18,8 +18,8 @@ export async function handleRegisterUserRequest(request: Request) {
 
   const body = await request.json()
   const payload = await registerUser({
-    name: body.name || 'unknown',
-    password: body.password,
+    name: typeof body?.name === 'string' ? body.name : '',
+    password: typeof body?.password === 'string' ? body.password : '',
   })
 
   return Response.json(payload, { status: 201 })

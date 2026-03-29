@@ -13,6 +13,7 @@ import { getInternalBaseUrl } from '@/lib/env'
 import { BaseImageGenerator, ImageGenerateParams, GenerateResult } from '../base'
 import { getProviderConfig } from '@/lib/api-config'
 import { getImageBase64Cached } from '@/lib/image-cache'
+import { normalizeRuntimeImageOptions } from '@core/model-runtime-aliases'
 import { setProxy } from '../../../../lib/prompts/proxy'
 
 type ContentPart = { inlineData: { mimeType: string; data: string } } | { text: string }
@@ -46,16 +47,18 @@ export class GoogleGeminiImageGenerator extends BaseImageGenerator {
         const { userId, prompt, referenceImages = [], options = {} } = params
 
         const { apiKey } = await getProviderConfig(userId, 'google')
-        const {
-            aspectRatio,
-            resolution
-        } = options as {
+        const rawOptions = options as {
             aspectRatio?: string
             resolution?: string
             provider?: string
             modelId?: string
             modelKey?: string
         }
+        const normalizedOptions = normalizeRuntimeImageOptions('google', this.modelId, rawOptions)
+        const {
+            aspectRatio,
+            resolution
+        } = normalizedOptions
 
         const allowedOptionKeys = new Set([
             'provider',
@@ -245,16 +248,18 @@ export class GoogleGeminiBatchImageGenerator extends BaseImageGenerator {
         const { userId, prompt, referenceImages = [], options = {} } = params
 
         const { apiKey } = await getProviderConfig(userId, 'google')
-        const {
-            aspectRatio,
-            resolution
-        } = options as {
+        const rawOptions = options as {
             aspectRatio?: string
             resolution?: string
             provider?: string
             modelId?: string
             modelKey?: string
         }
+        const normalizedOptions = normalizeRuntimeImageOptions('google', 'gemini-3-pro-image-preview-batch', rawOptions)
+        const {
+            aspectRatio,
+            resolution
+        } = normalizedOptions
 
         // 使用 Batch API 提交异步任务
         const { submitGeminiBatch } = await import('@/lib/gemini-batch-utils')

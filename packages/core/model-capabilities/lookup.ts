@@ -7,6 +7,12 @@ import {
   type UnifiedModelType,
 } from '@core/model-config-contract'
 import { findBuiltinCapabilities, findBuiltinCapabilityCatalogEntry } from '@core/model-capabilities/catalog'
+import {
+  normalizeVideoGenerationSelections,
+  resolveEffectiveVideoCapabilityDefinitions,
+} from '@core/model-capabilities/video-effective'
+import { findBuiltinPricingCatalogEntry } from '@core/model-pricing/catalog'
+import { projectVideoPricingTiersByFixedSelections } from '@core/model-pricing/video-tier'
 
 export type CapabilitySelectionValidationCode =
   | 'CAPABILITY_SELECTION_INVALID'
@@ -259,11 +265,19 @@ export function resolveGenerationOptionsForModel(input: {
   const overrides = pickSelectionForModel(input.capabilityOverrides, input.modelKey)
   const runtime = input.runtimeSelections
 
-  const selection = mergeSelectionRecords(defaults, overrides, runtime)
+  let selection = mergeSelectionRecords(defaults, overrides, runtime)
 
   // Custom model not in built-in catalog: skip validation, pass through selections directly
   if (input.capabilities === undefined) {
     return { options: { ...selection }, issues: [] }
+  }
+
+  if (input.modelType === 'video') {
+    const videoOptionFields = getCapabilityOptionFields(input.modelType, input.capabilities)
+    if (!Object.prototype.hasOwnProperty.call(videoOptionFields, 'generationMode') && selection.generationMode !== undefined) {
+      const { generationMode: _generationMode, ...rest } = selection
+      selection = rest
+    }
   }
 
   // 对有能力选项的模型做一次预检，捕获「必填字段缺失」场景
@@ -301,6 +315,43 @@ export function resolveGenerationOptionsForModel(input: {
           ...normalizedSelection,
           resolution: firstResolution,
         }
+      }
+    }
+  }
+
+  if (input.modelType === 'video') {
+    const videoOptionFields = getCapabilityOptionFields(input.modelType, input.capabilities)
+    const parsedVideoKey = parseModelKeyStrict(input.modelKey)
+    const pricingEntry = parsedVideoKey
+      ? findBuiltinPricingCatalogEntry('video', parsedVideoKey.provider, parsedVideoKey.modelId)
+      : null
+    const pricingTiers = pricingEntry?.pricing.mode === 'capability' && Array.isArray(pricingEntry.pricing.tiers)
+      ? pricingEntry.pricing.tiers
+      : []
+    const fixedSelections: Record<string, CapabilityValue> = {}
+    if (
+      Object.prototype.hasOwnProperty.call(videoOptionFields, 'generationMode')
+      && typeof normalizedSelection.generationMode === 'string'
+    ) {
+      fixedSelections.generationMode = normalizedSelection.generationMode
+    }
+    const projectedPricingTiers = projectVideoPricingTiersByFixedSelections({
+      tiers: pricingTiers,
+      fixedSelections,
+    })
+    const capabilityDefinitions = resolveEffectiveVideoCapabilityDefinitions({
+      videoCapabilities: input.capabilities.video,
+      pricingTiers: projectedPricingTiers,
+    })
+
+    if (capabilityDefinitions.length > 0) {
+      normalizedSelection = {
+        ...normalizedSelection,
+        ...normalizeVideoGenerationSelections({
+          definitions: capabilityDefinitions,
+          pricingTiers: projectedPricingTiers,
+          selection: normalizedSelection,
+        }),
       }
     }
   }

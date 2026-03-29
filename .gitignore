@@ -87,6 +87,9 @@ agent/
 # internal docs (not for public)
 docs/
 
+# license-server 独立项目（残留目录，实际项目在 ../waoowaoo-license-server）
+license-server/
+
 # GitHub CI workflows (internal)
 # .github/ — 只保留 workflows，忽略其他
 .github/*
