@@ -1,5 +1,5 @@
 {
-  "name": "waoowaoo",
+  "name": "soloclew-video",
   "version": "0.3.0",
   "private": true,
   "packageManager": "pnpm@8.15.5",
@@ -29,7 +29,7 @@
     "desktop:pack:dir": "electron-builder --win dir --publish never",
     "desktop:pack": "electron-builder --win nsis --publish never",
     "desktop:smoke": "node scripts/desktop/smoke-test.mjs",
-    "desktop:smoke:packaged": "node scripts/desktop/smoke-test.mjs --launch dist/desktop/win-unpacked/waoowaoo.exe",
+    "desktop:smoke:packaged": "node scripts/desktop/smoke-test.mjs --launch dist/desktop/win-unpacked/soloclew-video.exe",
     "desktop:verify:local": "npm run desktop:build:web && node scripts/desktop/verify-local.mjs",
     "desktop:verify:copy-from-global": "npm run desktop:build:web && node scripts/desktop/verify-copy-from-global.mjs",
     "desktop:verify:modify-submit-routes": "npm run desktop:build:web && node scripts/desktop/verify-modify-image-submit-routes.mjs",
@@ -242,8 +242,8 @@
     "@img/sharp-win32-x64": "0.34.5"
   },
   "build": {
-    "appId": "com.waoowaoo.desktop",
-    "productName": "waoowaoo",
+    "appId": "com.soloclew.video.desktop",
+    "productName": "soloclew-video",
     "asar": false,
     "npmRebuild": false,
     "nodeGypRebuild": false,

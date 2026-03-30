@@ -117,7 +117,7 @@ function showActivationWindow(app, client) {
       minimizable: false,
       fullscreenable: false,
       autoHideMenuBar: true,
-      title: 'waoowaoo - 激活授权',
+      title: 'soloclew-video - 激活授权',
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,

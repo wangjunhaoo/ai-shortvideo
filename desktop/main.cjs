@@ -97,6 +97,6 @@ async function bootstrap() {
 
 void bootstrap().catch((error) => {
   console.error('[desktop] 启动失败', error)
-  dialog.showErrorBox('waoowaoo 启动失败', error instanceof Error ? error.message : String(error))
+  dialog.showErrorBox('soloclew-video 启动失败', error instanceof Error ? error.message : String(error))
   app.quit()
 })

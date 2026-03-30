@@ -11,7 +11,7 @@ export async function handleDownloadAdminLogsRequest() {
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  const filename = `waoowaoo-logs-${timestamp}.txt`
+  const filename = `soloclew-video-logs-${timestamp}.txt`
 
   return new Response(logs, {
     status: 200,

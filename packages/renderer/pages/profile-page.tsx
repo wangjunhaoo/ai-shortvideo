@@ -15,8 +15,6 @@ export default function ProfilePage() {
     return <RendererSessionPendingScreen label={tc('loading')} />
   }
 
-  const noBillingText = t('openSourceNoBilling')
-
   return (
     <div className="glass-page min-h-screen">
       <Navbar />
@@ -35,11 +33,6 @@ export default function ProfilePage() {
                   <p className="text-xs text-[var(--glass-text-tertiary)]">{t('personalAccount')}</p>
                 </div>
 
-                {/* 桌面单机版不再暴露余额体系，保留提示避免用户误解 */}
-                <div className="glass-surface-soft rounded-2xl border border-[var(--glass-stroke-base)] p-4">
-                  <div className="text-xs font-medium text-[var(--glass-text-secondary)]">{t('apiConfig')}</div>
-                  <div className="mt-2 text-base font-semibold text-[var(--glass-text-primary)]">{noBillingText}</div>
-                </div>
               </div>
 
               {/* 导航菜单 */}

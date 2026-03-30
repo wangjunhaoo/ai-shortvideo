@@ -43,10 +43,10 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <Link href={{ pathname: session ? '/workspace' : '/' }} className="group">
                 <Image
-                  src="/logo-small.png?v=1"
+                  src="/logo-small.png?v=2"
                   alt={tc('appName')}
-                  width={80}
-                  height={80}
+                  width={40}
+                  height={40}
                   className="object-contain transition-transform group-hover:scale-110"
                 />
               </Link>

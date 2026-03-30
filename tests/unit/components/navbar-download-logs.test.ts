@@ -57,7 +57,7 @@ const messages = {
     signup: '注册',
   },
   common: {
-    appName: 'waoowaoo',
+    appName: 'soloclew-video',
     betaVersion: 'Beta v{version}',
     updateNotice: {
       openDialog: '打开更新弹窗',

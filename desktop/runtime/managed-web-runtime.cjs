@@ -154,7 +154,7 @@ function registerManagedProcess({ app, dialog, name, child, logFilePath, critica
       logRuntime('非关键进程退出，应用继续运行', { name, code, signal })
       return
     }
-    dialog.showErrorBox('waoowaoo 运行异常', `${reason}\n请重启应用，若仍失败请查看日志目录。`)
+    dialog.showErrorBox('soloclew-video 运行异常', `${reason}\n请重启应用，若仍失败请查看日志目录。`)
     app.quit()
   })
 }

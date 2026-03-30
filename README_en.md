@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="public/banner.png" alt="waoowaoo" width="600">
+  <img src="public/banner.png" alt="soloclew-video" width="600">
 </p>
 
-<h1 align="center">waoowaoo AI Video Studio</h1>
+<h1 align="center">soloclew-video AI Video Studio</h1>
 
 <p align="center">
   An AI-powered tool for creating short drama / comic videos — automatically generates storyboards, characters, and scenes from novel text, then assembles them into complete videos.
 </p>
 
 <p align="center">
-  <a href="README.md">中文文档</a> · <a href="https://www.waoowaoo.com/">Join Waitlist</a> · <a href="https://github.com/saturndec/waoowaoo/issues">Report Bug</a>
+  <a href="README.md">中文文档</a> · <a href="https://github.com/wangjunhaoo/ai-shortvideo">GitHub Repo</a> · <a href="https://github.com/wangjunhaoo/ai-shortvideo/issues">Report Bug</a>
 </p>
 
 > [!IMPORTANT]
@@ -60,7 +60,7 @@ No need to clone the repository. Just download and run:
 
 ```bash
 # Download docker-compose.yml
-curl -O https://raw.githubusercontent.com/saturndec/waoowaoo/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/wangjunhaoo/ai-shortvideo/main/docker-compose.yml
 
 # Start all services
 docker compose up -d
@@ -70,8 +70,8 @@ docker compose up -d
 
 ```bash
 docker compose down -v
-docker rmi ghcr.io/saturndec/waoowaoo:latest
-curl -O https://raw.githubusercontent.com/saturndec/waoowaoo/main/docker-compose.yml
+docker compose pull
+curl -O https://raw.githubusercontent.com/wangjunhaoo/ai-shortvideo/main/docker-compose.yml
 docker compose up -d
 ```
 
@@ -80,8 +80,8 @@ docker compose up -d
 ### Method 2: Clone & Docker Build (Full Control)
 
 ```bash
-git clone https://github.com/saturndec/waoowaoo.git
-cd waoowaoo
+git clone https://github.com/wangjunhaoo/ai-shortvideo.git
+cd ai-shortvideo
 docker compose up -d
 ```
 
@@ -94,8 +94,8 @@ docker compose down && docker compose up -d --build
 ### Method 3: Local Development (For Developers)
 
 ```bash
-git clone https://github.com/saturndec/waoowaoo.git
-cd waoowaoo
+git clone https://github.com/wangjunhaoo/ai-shortvideo.git
+cd ai-shortvideo
 
 # Copy environment config (must be done before npm install)
 cp .env.example .env
@@ -159,14 +159,14 @@ After launching, go to **Settings** to configure your AI service API keys. A bui
 
 This project is maintained by the core team. You're welcome to contribute by:
 
-- 🐛 Filing [Issues](https://github.com/saturndec/waoowaoo/issues) — report bugs
-- 💡 Filing [Issues](https://github.com/saturndec/waoowaoo/issues) — propose features
+- 🐛 Filing [Issues](https://github.com/wangjunhaoo/ai-shortvideo/issues) — report bugs
+- 💡 Filing [Issues](https://github.com/wangjunhaoo/ai-shortvideo/issues) — propose features
 - 🔧 Submitting Pull Requests as references — we review every PR carefully for ideas, but the team implements fixes internally rather than merging external PRs directly
 
 ---
 
-**Made with ❤️ by waoowaoo team**
+**Made with ❤️ by soloclew-video team**
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=saturndec/waoowaoo&type=date&legend=top-left)](https://www.star-history.com/#saturndec/waoowaoo&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=wangjunhaoo/ai-shortvideo&type=date&legend=top-left)](https://www.star-history.com/#wangjunhaoo/ai-shortvideo&type=date&legend=top-left)

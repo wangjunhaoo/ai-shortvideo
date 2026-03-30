@@ -39,7 +39,7 @@ jobs:
       - name: Upload Desktop Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: waoowaoo-desktop-windows
+          name: soloclew-video-desktop-windows
           path: dist/desktop/*
           if-no-files-found: error
 

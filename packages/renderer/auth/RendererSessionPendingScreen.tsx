@@ -14,8 +14,8 @@ export function RendererSessionPendingScreen({
       {mode === 'logo' ? (
         <div className="flex flex-col items-center gap-4">
           <img
-            src="/logo-small.png?v=1"
-            alt="waoowaoo"
+            src="/logo-small.png?v=2"
+            alt="soloclew-video"
             width={80}
             height={80}
             className="animate-pulse"
