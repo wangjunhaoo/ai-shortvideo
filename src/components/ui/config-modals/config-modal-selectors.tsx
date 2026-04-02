@@ -134,7 +134,10 @@ export function StyleSelector({ value, onChange, options }: StyleSelectorProps) 
       </button>
 
       {isOpen && (
-        <div className="glass-surface-modal absolute z-50 mt-1 left-0 right-0 p-3">
+        <div
+          className="glass-surface-modal absolute z-50 mt-1 left-0 right-0 max-h-60 overflow-y-auto custom-scrollbar p-3"
+          style={{ minWidth: '280px' }}
+        >
           <div className="grid grid-cols-2 gap-2">
             {options.map((option) => (
               <button

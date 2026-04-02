@@ -152,6 +152,13 @@ export const ART_STYLES = [
     preview: '实',
     promptZh: '真实电影级画面质感，真实现实场景，色彩饱满通透，画面干净精致，真实感',
     promptEn: 'Realistic cinematic look, real-world scene fidelity, rich transparent colors, clean and refined image quality.'
+  },
+  {
+    value: 'chinese-cg-painting',
+    label: '古风彩绘',
+    preview: '彩',
+    promptZh: '彩绘风格，超写实国风CG插画，精致的五官，人物特征细腻，电影级光效与构图，景深背景虚化，超高细节，8K分辨率，杰作，品质卓越。',
+    promptEn: 'Chinese CG painting style, hyper-realistic Gufeng illustration, exquisite facial features, delicate character details, cinematic lighting and composition, depth of field with bokeh, ultra-high detail, 8K resolution, masterpiece, superior quality.'
   }
 ]
 

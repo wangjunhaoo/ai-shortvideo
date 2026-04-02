@@ -26,8 +26,8 @@ Output format:
       "title": "Episode title",
       "summary": "Short summary",
       "estimatedWords": 0,
-      "startMarker": "exact start marker",
-      "endMarker": "exact end marker",
+      "startMarker": "first 30-50 chars of this episode, copied verbatim from source text",
+      "endMarker": "last 30-50 chars of this episode, copied verbatim from source text",
       "startIndex": 0,
       "endIndex": 0
     }

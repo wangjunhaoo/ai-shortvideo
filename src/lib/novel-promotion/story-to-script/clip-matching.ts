@@ -35,7 +35,7 @@ type ApproximateNormMatch = {
   confidence: number
 }
 
-const APPROX_CONFIDENCE_THRESHOLD = 0.9
+const APPROX_CONFIDENCE_THRESHOLD = 0.85
 const APPROX_MAX_CANDIDATES = 240
 
 const PUNCTUATION_MAP: Record<string, string> = {
@@ -391,6 +391,47 @@ function tryApproximateNormalizedMarkerMatch(
   }
 }
 
+function trySubstringFallbackMarkerMatch(
+  content: string,
+  normalized: NormalizedContent,
+  marker: string,
+  fromIndex: number,
+): TextMarkerMatch | null {
+  const normalizedMarker = normalizeQuery(marker)
+  // 要求 marker 足够长才启用子串回退，短 marker 太容易误匹配
+  if (normalizedMarker.length < 12) return null
+
+  // 取 marker 中间连续子串，长度为原 marker 的 70%，最少 10 字符
+  const subLen = Math.max(10, Math.floor(normalizedMarker.length * 0.7))
+  const subStart = Math.floor((normalizedMarker.length - subLen) / 2)
+  const subQuery = normalizedMarker.slice(subStart, subStart + subLen)
+
+  const fromNorm = findNormIndexForRaw(normalized, fromIndex)
+  const matchIdx = normalized.text.indexOf(subQuery, fromNorm)
+  if (matchIdx === -1) return null
+
+  // 从子串匹配位置向外扩展到完整 marker 长度
+  const estimatedStart = Math.max(0, matchIdx - subStart)
+  const estimatedEnd = Math.min(normalized.text.length, estimatedStart + normalizedMarker.length)
+
+  // 扩展后的完整候选段必须和 marker 有足够的相似度
+  const candidate = normalized.text.slice(estimatedStart, estimatedEnd)
+  const similarity = scoreApproximateSimilarity(normalizedMarker, candidate)
+  if (similarity < 0.8) return null
+
+  const rawStart = normalized.rawStartByNorm[estimatedStart]
+  if (rawStart === undefined || rawStart < fromIndex) return null
+  const rawEnd = normalized.rawEndByNorm[Math.max(0, estimatedEnd - 1)]
+  if (rawEnd === undefined || rawEnd <= rawStart) return null
+
+  return {
+    startIndex: rawStart,
+    endIndex: rawEnd,
+    level: 'L3',
+    confidence: similarity,
+  }
+}
+
 export function createTextMarkerMatcher(content: string): TextMarkerMatcher {
   const normalized = buildNormalizedContent(content)
 
@@ -410,6 +451,9 @@ export function createTextMarkerMatcher(content: string): TextMarkerMatcher {
 
       const l3 = tryApproximateNormalizedMarkerMatch(normalized, normalizedMarker, fromIndex)
       if (l3) return l3
+
+      const l4 = trySubstringFallbackMarkerMatch(content, normalized, marker, fromIndex)
+      if (l4) return l4
 
       return null
     },

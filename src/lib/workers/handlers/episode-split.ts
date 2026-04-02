@@ -24,7 +24,9 @@ type SplitResponse = {
   episodes?: EpisodeSplit[]
 }
 
-const MAX_EPISODE_SPLIT_ATTEMPTS = 2
+const MAX_EPISODE_SPLIT_ATTEMPTS = 3
+const EPISODE_SPLIT_BOUNDARY_ERROR_MESSAGE = '智能分集未能稳定定位每集边界，请在文本中补充明确的章节或“第X集”标记后重试。'
+const EPISODE_SPLIT_RESPONSE_ERROR_MESSAGE = '智能分集返回格式异常，请重试；若持续失败，建议在文本中补充明确的章节或“第X集”标记。'
 const EPISODE_SPLIT_BOUNDARY_SUFFIX = `
 
 [Boundary Constraints]
@@ -51,6 +53,41 @@ function toValidBoundaryIndex(value: unknown, textLength: number): number | null
   const idx = Math.floor(value)
   if (idx < 0 || idx > textLength) return null
   return idx
+}
+
+function normalizeEpisodeSplitError(error: Error | null): Error {
+  if (!error) {
+    return new Error(EPISODE_SPLIT_BOUNDARY_ERROR_MESSAGE)
+  }
+
+  const message = error.message.trim()
+  const lowerMessage = message.toLowerCase()
+
+  const isBoundaryError =
+    lowerMessage.includes('boundary constraints')
+    || lowerMessage.includes('startmarker')
+    || lowerMessage.includes('endmarker')
+    || message.includes('必须同时提供 startMarker/endMarker')
+    || message.includes('无法定位')
+    || message.includes('偏差过大')
+    || message.includes('边界区间无效')
+    || message.includes('匹配内容为空')
+    || message.includes('分集结果为空')
+
+  if (isBoundaryError) {
+    return new Error(EPISODE_SPLIT_BOUNDARY_ERROR_MESSAGE)
+  }
+
+  const isResponseFormatError =
+    lowerMessage.includes('failed to parse ai response')
+    || lowerMessage.includes('invalid episodes payload')
+    || lowerMessage.includes('expected json object')
+
+  if (isResponseFormatError) {
+    return new Error(EPISODE_SPLIT_RESPONSE_ERROR_MESSAGE)
+  }
+
+  return error
 }
 
 export async function handleEpisodeSplitTask(job: WorkerTaskJob) {
@@ -235,7 +272,7 @@ export async function handleEpisodeSplitTask(job: WorkerTaskJob) {
   }
 
   if (!episodes) {
-    throw lastError || new Error('分集边界匹配失败')
+    throw normalizeEpisodeSplitError(lastError)
   }
 
   await reportTaskProgress(job, 96, {

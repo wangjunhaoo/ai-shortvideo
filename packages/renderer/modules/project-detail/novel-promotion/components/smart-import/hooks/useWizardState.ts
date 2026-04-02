@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { logInfo as _ulogInfo, logWarn as _ulogWarn, logError as _ulogError } from '@/lib/logging/core'
 import { detectEpisodeMarkers, type EpisodeMarkerResult } from '@/lib/episode-marker-detector'
 import { countWords } from '@/lib/word-count'
@@ -23,7 +23,7 @@ interface UseWizardStateParams {
 }
 
 export function useWizardState({ projectId, importStatus, onImportComplete, t }: UseWizardStateParams) {
-  const initialStage: WizardStage = importStatus === 'pending' ? 'preview' : 'select'
+  const initialStage: WizardStage = 'select'
   const [stage, setStage] = useState<WizardStage>(initialStage)
   const [rawContent, setRawContent] = useState('')
   const [episodes, setEpisodes] = useState<SplitEpisode[]>([])
@@ -33,36 +33,71 @@ export function useWizardState({ projectId, importStatus, onImportComplete, t }:
   const [markerResult, setMarkerResult] = useState<EpisodeMarkerResult | null>(null)
   const [showMarkerConfirm, setShowMarkerConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const hasAttemptedRestoreRef = useRef(false)
 
   const listProjectEpisodesMutation = useListProjectEpisodes(projectId)
   const splitProjectEpisodesMutation = useSplitProjectEpisodes(projectId)
   const splitProjectEpisodesByMarkersMutation = useSplitProjectEpisodesByMarkers(projectId)
   const saveProjectEpisodesBatchMutation = useSaveProjectEpisodesBatch(projectId)
 
-  const loadSavedEpisodes = useCallback(async () => {
-    try {
-      const data = await listProjectEpisodesMutation.mutateAsync()
-      if (data.episodes && data.episodes.length > 0) {
-        const loadedEpisodes: SplitEpisode[] = data.episodes.map((ep: { episodeNumber?: number; name?: string; description?: string; novelText?: string }, idx: number) => ({
-          number: ep.episodeNumber || idx + 1,
-          title: ep.name || t('episode', { num: idx + 1 }),
-          summary: ep.description || '',
-          content: ep.novelText || '',
-          wordCount: countWords(ep.novelText || ''),
-        }))
-        setEpisodes(loadedEpisodes)
-        setStage('preview')
-      }
-    } catch (err) {
-      _ulogError('[SmartImport] 加载已保存剧集失败:', err)
-    }
-  }, [listProjectEpisodesMutation, t])
+  const hydrateEpisodes = useCallback(
+    (
+      savedEpisodes: Array<{
+        episodeNumber?: number
+        name?: string
+        description?: string
+        novelText?: string
+      }>,
+    ) => savedEpisodes.map((ep, idx) => ({
+      number: ep.episodeNumber || idx + 1,
+      title: ep.name || t('episode', { num: idx + 1 }),
+      summary: ep.description || '',
+      content: ep.novelText || '',
+      wordCount: countWords(ep.novelText || ''),
+    })),
+    [t],
+  )
 
   useEffect(() => {
-    if (importStatus === 'pending' && episodes.length === 0) {
-      void loadSavedEpisodes()
+    hasAttemptedRestoreRef.current = false
+  }, [projectId])
+
+  useEffect(() => {
+    if (importStatus !== 'pending') {
+      hasAttemptedRestoreRef.current = false
+      return
     }
-  }, [episodes.length, importStatus, loadSavedEpisodes])
+    if (episodes.length > 0 || hasAttemptedRestoreRef.current) {
+      return
+    }
+
+    hasAttemptedRestoreRef.current = true
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const data = await listProjectEpisodesMutation.mutateAsync()
+        if (cancelled) return
+
+        if (Array.isArray(data.episodes) && data.episodes.length > 0) {
+          setEpisodes(hydrateEpisodes(data.episodes))
+          setStage('preview')
+          return
+        }
+
+        setStage('select')
+      } catch (err) {
+        _ulogError('[SmartImport] 加载已保存剧集失败:', err)
+        if (!cancelled) {
+          setStage('select')
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [episodes.length, hydrateEpisodes, importStatus, listProjectEpisodesMutation])
 
   const performAISplit = useCallback(async () => {
     setShowMarkerConfirm(false)

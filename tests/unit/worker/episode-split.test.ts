@@ -2,13 +2,16 @@ import type { Job } from 'bullmq'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 
-const prismaMock = vi.hoisted(() => ({
+const repositoriesMock = vi.hoisted(() => ({
   project: {
-    findUnique: vi.fn(async () => ({ id: 'project-1', mode: 'novel-promotion' })),
+    getProjectMode: vi.fn(async () => ({ id: 'project-1', mode: 'novel-promotion' })),
+    getNovelProjectId: vi.fn(async () => 'np-project-1'),
   },
-  novelPromotionProject: {
-    findFirst: vi.fn(async () => ({ id: 'np-project-1' })),
+  userPreference: {
+    getAnalysisModel: vi.fn(async () => 'llm::analysis-model'),
   },
+  task: {},
+  assetHub: {},
 }))
 
 const llmClientMock = vi.hoisted(() => ({
@@ -26,9 +29,15 @@ const llmClientMock = vi.hoisted(() => ({
   })),
 }))
 
-const configServiceMock = vi.hoisted(() => ({
-  getUserModelConfig: vi.fn(async () => ({
-    analysisModel: 'llm::analysis-model',
+const runtimeContextMock = vi.hoisted(() => ({
+  createTaskExecutionContext: vi.fn((job: Job<TaskJobData>) => ({
+    job,
+    data: job.data,
+    taskId: job.data.taskId,
+    projectId: job.data.projectId,
+    userId: job.data.userId,
+    queueName: 'test-worker',
+    repositories: repositoriesMock,
   })),
 }))
 
@@ -56,9 +65,8 @@ const promptMock = vi.hoisted(() => ({
   buildPrompt: vi.fn(() => 'EPISODE_SPLIT_PROMPT'),
 }))
 
-vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@engine/runtime-context', () => runtimeContextMock)
 vi.mock('@/lib/llm-client', () => llmClientMock)
-vi.mock('@/lib/config-service', () => configServiceMock)
 vi.mock('@/lib/llm-observe/internal-stream-context', () => internalStreamMock)
 vi.mock('@/lib/workers/shared', () => sharedMock)
 vi.mock('@/lib/workers/utils', () => utilsMock)
@@ -97,6 +105,9 @@ function buildJob(content: string): Job<TaskJobData> {
 describe('worker episode-split', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    repositoriesMock.project.getProjectMode.mockResolvedValue({ id: 'project-1', mode: 'novel-promotion' })
+    repositoriesMock.project.getNovelProjectId.mockResolvedValue('np-project-1')
+    repositoriesMock.userPreference.getAnalysisModel.mockResolvedValue('llm::analysis-model')
   })
 
   it('fails fast when content is too short', async () => {
@@ -123,5 +134,27 @@ describe('worker episode-split', () => {
     expect(result.episodes[0]?.title).toBe('第一集')
     expect(result.episodes[0]?.content).toContain('START_MARKER')
     expect(result.episodes[0]?.content).toContain('END_MARKER')
+  })
+
+  it('returns user-friendly error when ai boundaries cannot be resolved', async () => {
+    llmClientMock.getCompletionContent.mockReturnValue(JSON.stringify({
+      episodes: [
+        {
+          number: 1,
+          title: '第一集',
+          summary: '开端',
+        },
+      ],
+    }))
+
+    const content = [
+      '前置内容用于凑长度，确保文本超过一百字。这一段会重复两次以保证长度满足阈值。',
+      '前置内容用于凑长度，确保文本超过一百字。这一段会重复两次以保证长度满足阈值。',
+      '这里是缺少明确边界标记的正文内容，模型即便分集失败，也不应该把内部 Boundary Constraints 提示词直接暴露给用户。',
+    ].join('')
+
+    await expect(handleEpisodeSplitTask(buildJob(content))).rejects.toThrow(
+      '智能分集未能稳定定位每集边界，请在文本中补充明确的章节或“第X集”标记后重试。',
+    )
   })
 })

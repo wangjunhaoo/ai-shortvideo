@@ -365,7 +365,7 @@ export function SettingsModal({
                 </div>
                 <p className="text-[12px] text-[var(--glass-text-tertiary)] mb-6">{t('subtitle')}</p>
                 <div className="space-y-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                    <div className="glass-surface-soft p-5 sm:p-6 space-y-4">
+                    <div className="glass-surface-soft relative z-10 p-5 sm:p-6 space-y-4">
                         <h3 className="text-sm font-semibold text-[var(--glass-text-tertiary)]">{t('visualStyle')}</h3>
                         <div className="max-w-xs">
                             <StyleSelector
