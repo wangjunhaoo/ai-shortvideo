@@ -27,9 +27,12 @@
     "desktop:prepare": "npm run desktop:clean && npm run desktop:prepare:sqlite-schema && npm run desktop:prisma:generate:sqlite && npm run desktop:build:web",
     "desktop:run": "electron ./desktop/main.cjs",
     "desktop:pack:dir": "electron-builder --win dir --publish never",
+    "desktop:pack:mac:dir": "electron-builder --mac dir --publish never",
     "desktop:pack": "electron-builder --win nsis --publish never",
+    "desktop:pack:mac": "electron-builder --mac dmg zip --publish never",
     "desktop:smoke": "node scripts/desktop/smoke-test.mjs",
-    "desktop:smoke:packaged": "node scripts/desktop/smoke-test.mjs --launch dist/desktop/win-unpacked/soloclew-video.exe",
+    "desktop:smoke:packaged": "node scripts/desktop/smoke-test.mjs --platform win",
+    "desktop:smoke:packaged:mac": "node scripts/desktop/smoke-test.mjs --platform mac",
     "desktop:verify:local": "npm run desktop:build:web && node scripts/desktop/verify-local.mjs",
     "desktop:verify:copy-from-global": "npm run desktop:build:web && node scripts/desktop/verify-copy-from-global.mjs",
     "desktop:verify:modify-submit-routes": "npm run desktop:build:web && node scripts/desktop/verify-modify-image-submit-routes.mjs",
@@ -39,9 +42,12 @@
     "desktop:verify:final-heavy-routes": "npm run desktop:build:web && node scripts/desktop/verify-final-heavy-routes.mjs",
     "desktop:verify:update-routes": "npm run desktop:build:web && node scripts/desktop/verify-update-routes.mjs",
     "desktop:verify:packaged": "npm run desktop:prepare && npm run desktop:pack:dir && npm run desktop:smoke:packaged",
+    "desktop:verify:packaged:mac": "npm run desktop:prepare && npm run desktop:pack:mac:dir && npm run desktop:smoke:packaged:mac",
     "desktop:verify:fast": "npm run desktop:verify:local",
     "desktop:verify:release": "npm run desktop:prepare && npm run desktop:pack && npm run desktop:smoke:packaged",
+    "desktop:verify:release:mac": "npm run desktop:prepare && npm run desktop:pack:mac && npm run desktop:smoke:packaged:mac",
     "desktop:dist": "npm run desktop:deps:install && npm run desktop:deps:verify && npm run desktop:prepare && npm run desktop:pack",
+    "desktop:dist:mac": "npm run desktop:deps:install && npm run desktop:deps:verify && npm run desktop:prepare && npm run desktop:pack:mac",
     "desktop:all": "npm run desktop:dist",
     "desktop:sync:redis:win": "node scripts/desktop/sync-redis-win.mjs",
     "build:turbo": "next build --turbopack",
@@ -249,7 +255,8 @@
     "nodeGypRebuild": false,
     "afterPack": "scripts/desktop/after-pack-prisma.cjs",
     "directories": {
-      "output": "dist/desktop"
+      "output": "dist/desktop",
+      "buildResources": "public"
     },
     "files": [
       "desktop/**/*",
@@ -282,6 +289,12 @@
         "nsis"
       ],
       "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "nsis": {
       "oneClick": false,

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
@@ -7,6 +8,7 @@ function parseArgs(argv) {
   const options = {
     baseUrl: 'http://127.0.0.1:13000',
     launch: null,
+    platform: null,
     locale: 'zh',
     timeoutMs: 120_000,
     keepRunning: false,
@@ -26,6 +28,11 @@ function parseArgs(argv) {
       index += 1
       continue
     }
+    if (arg === '--platform' && next) {
+      options.platform = next
+      index += 1
+      continue
+    }
     if (arg === '--locale' && next) {
       options.locale = next
       index += 1
@@ -42,6 +49,90 @@ function parseArgs(argv) {
   }
 
   return options
+}
+
+function listDirectoryEntries(dirPath) {
+  try {
+    return fs.readdirSync(dirPath, { withFileTypes: true })
+  } catch {
+    return []
+  }
+}
+
+function resolveMacAppExecutable(appBundlePath) {
+  const appName = path.basename(appBundlePath, '.app')
+  return path.join(appBundlePath, 'Contents', 'MacOS', appName)
+}
+
+function resolveLaunchTarget(launchPath) {
+  const resolvedPath = path.resolve(launchPath)
+
+  if (resolvedPath.toLowerCase().endsWith('.app')) {
+    const executablePath = resolveMacAppExecutable(resolvedPath)
+    if (!fs.existsSync(executablePath)) {
+      throw new Error(`未找到 macOS 应用可执行文件：${executablePath}`)
+    }
+    return executablePath
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`未找到待启动的打包产物：${resolvedPath}`)
+  }
+
+  return resolvedPath
+}
+
+function resolveAutoLaunchTarget(platformName) {
+  const normalizedPlatform = String(platformName || '').trim().toLowerCase()
+  const distDir = path.resolve('dist', 'desktop')
+
+  if (!fs.existsSync(distDir)) {
+    throw new Error(`未找到打包输出目录：${distDir}`)
+  }
+
+  if (normalizedPlatform === 'win' || normalizedPlatform === 'windows') {
+    const unpackedDir = listDirectoryEntries(distDir)
+      .filter((entry) => entry.isDirectory() && entry.name.endsWith('-unpacked'))
+      .sort((left, right) => left.name.localeCompare(right.name))[0]
+
+    if (!unpackedDir) {
+      throw new Error(`未找到 Windows unpacked 目录：${distDir}`)
+    }
+
+    const unpackedDirPath = path.join(distDir, unpackedDir.name)
+    const exeEntry = listDirectoryEntries(unpackedDirPath)
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.exe'))
+      .sort((left, right) => left.name.localeCompare(right.name))[0]
+
+    if (!exeEntry) {
+      throw new Error(`未在 ${unpackedDirPath} 中找到可执行 exe`)
+    }
+
+    return path.join(unpackedDirPath, exeEntry.name)
+  }
+
+  if (normalizedPlatform === 'mac' || normalizedPlatform === 'darwin' || normalizedPlatform === 'macos') {
+    const macDir = listDirectoryEntries(distDir)
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith('mac'))
+      .sort((left, right) => left.name.localeCompare(right.name))[0]
+
+    if (!macDir) {
+      throw new Error(`未找到 macOS 打包目录：${distDir}`)
+    }
+
+    const macDirPath = path.join(distDir, macDir.name)
+    const appBundle = listDirectoryEntries(macDirPath)
+      .filter((entry) => entry.isDirectory() && entry.name.endsWith('.app'))
+      .sort((left, right) => left.name.localeCompare(right.name))[0]
+
+    if (!appBundle) {
+      throw new Error(`未在 ${macDirPath} 中找到 .app bundle`)
+    }
+
+    return resolveLaunchTarget(path.join(macDirPath, appBundle.name))
+  }
+
+  throw new Error(`不支持自动定位的打包平台：${platformName}`)
 }
 
 class CookieJar {
@@ -294,7 +385,7 @@ async function verifyBillingRoutesUnavailable(baseUrl, cookieJar, projectId) {
 }
 
 function launchDesktopApp(executablePath) {
-  const resolvedPath = path.resolve(executablePath)
+  const resolvedPath = resolveLaunchTarget(executablePath)
   const child = spawn(resolvedPath, [], {
     stdio: 'ignore',
     windowsHide: true,
@@ -331,9 +422,18 @@ async function main() {
   let launchedProcess = null
 
   try {
+    const launchTarget = options.launch
+      ? resolveLaunchTarget(options.launch)
+      : options.platform
+        ? resolveAutoLaunchTarget(options.platform)
+        : null
+
     if (options.launch) {
-      console.log(`[desktop-smoke] 启动桌面应用: ${options.launch}`)
-      launchedProcess = launchDesktopApp(options.launch)
+      console.log(`[desktop-smoke] 启动桌面应用: ${launchTarget}`)
+      launchedProcess = launchDesktopApp(launchTarget)
+    } else if (launchTarget) {
+      console.log(`[desktop-smoke] 自动定位桌面应用: ${launchTarget}`)
+      launchedProcess = launchDesktopApp(launchTarget)
     }
 
     console.log('[desktop-smoke] 等待桌面服务启动')

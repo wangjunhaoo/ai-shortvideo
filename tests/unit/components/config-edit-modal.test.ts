@@ -48,14 +48,16 @@ const renderWithIntl = (node: ReactElement) => {
 }
 
 describe('SettingsModal', () => {
-  it('保留 5 种视觉风格常量', () => {
-    expect(ART_STYLES).toHaveLength(5)
+  it('保留 7 种视觉风格常量', () => {
+    expect(ART_STYLES).toHaveLength(7)
     expect(ART_STYLES.map((style) => style.label)).toEqual([
       '漫画风',
       '精致国漫',
       '日系动漫风',
       '真人风格',
       '古风彩绘',
+      '国风仙侠3D',
+      '水墨仙侠3D',
     ])
   })
 

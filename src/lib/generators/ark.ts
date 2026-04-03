@@ -10,6 +10,7 @@ import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core
  * - Seedance 1.0 Pro (doubao-seedance-1-0-pro-250528)
  * - Seedance 1.0 Lite (doubao-seedance-1-0-lite-i2v-250428)
  * - Seedance 1.5 Pro (doubao-seedance-1-5-pro-251215)
+ * - Seedance 2.0 (doubao-seedance-2-0-260128，最小放开仅支持普通单图模式)
  * - 支持批量模式 (-batch 后缀)
  * - 支持首尾帧模式
  * - 支持音频生成 (Seedance 1.5 Pro)
@@ -102,6 +103,16 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
         supportsFirstLastFrame: true,
         supportsGenerateAudio: true,
         supportsDraft: true,
+        supportsFrames: false,
+        resolutionOptions: ['480p', '720p', '1080p'],
+    },
+    // 最小放开：先按普通单图生视频接入，不开放 2.0 的多模态/首尾帧/音频能力。
+    'doubao-seedance-2-0-260128': {
+        durationMin: 5,
+        durationMax: 15,
+        supportsFirstLastFrame: false,
+        supportsGenerateAudio: false,
+        supportsDraft: false,
         supportsFrames: false,
         resolutionOptions: ['480p', '720p', '1080p'],
     },

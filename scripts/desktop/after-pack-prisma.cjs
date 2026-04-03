@@ -17,8 +17,19 @@ function resolvePackagedAppDir(context) {
     throw new Error('[desktop][afterPack] 缺少 appOutDir，无法定位打包产物目录。')
   }
 
+  if (context.electronPlatformName === 'darwin') {
+    const productFilename = context.packager?.appInfo?.productFilename
+    if (!productFilename) {
+      throw new Error('[desktop][afterPack] 缺少 productFilename，无法定位 macOS 应用 bundle。')
+    }
+
+    const appDir = path.join(appOutDir, `${productFilename}.app`, 'Contents', 'Resources', 'app')
+    ensureExists(appDir, '请确认当前目标平台的 .app bundle 已生成。')
+    return appDir
+  }
+
   const appDir = path.join(appOutDir, 'resources', 'app')
-  ensureExists(appDir, '请确认当前目标平台为 Windows（win-unpacked）。')
+  ensureExists(appDir, '请确认当前目标平台的 resources/app 目录已生成。')
   return appDir
 }
 

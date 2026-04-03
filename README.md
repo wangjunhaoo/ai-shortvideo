@@ -37,10 +37,10 @@
 
 ## 🚀 快速开始
 
-### Windows 桌面版（推荐普通用户）
+### Windows / macOS 桌面版（推荐普通用户）
 
-> 当前仓库已提供桌面端打包链路（Electron + NSIS）。  
-> 普通用户可直接使用 `Setup.exe` 安装，无需 Docker / Node.js。
+> 当前仓库已提供桌面端打包链路（Electron + electron-builder）。  
+> Windows 产出 `Setup.exe`，macOS 产出 `.dmg` / `.zip`，普通用户无需 Docker / Node.js。
 
 如果你是维护者，发布桌面安装包步骤如下：
 
@@ -51,11 +51,16 @@ npm run desktop:prepare
 # 2) （仅 Windows）下载 redis-server.exe 到打包目录
 npm run desktop:sync:redis:win
 
-# 3) 产出安装包
+# 3) 产出 Windows 安装包
 npm run desktop:pack
+
+# 4) 在 macOS 机器上产出 macOS 安装包
+npm run desktop:pack:mac
 ```
 
-CI 已新增 Windows 构建工作流：`.github/workflows/desktop-windows.yml`。  
+> ⚠️ macOS 安装包必须在 macOS 环境中构建；Windows CI 不能直接产出可发布的 `.dmg` / `.zip`。
+
+CI 已新增 Windows / macOS 构建工作流：`.github/workflows/desktop-windows.yml`、`.github/workflows/desktop-macos.yml`。  
 打 tag（`v*`）后会自动生成并上传桌面安装包资产。
 
 ---
